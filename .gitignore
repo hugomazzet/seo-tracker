@@ -1,0 +1,18 @@
+# Global
+*code-workspace
+.DS_Store
+data/
+
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets
+service-account.json

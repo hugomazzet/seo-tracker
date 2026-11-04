@@ -1,8 +1,3 @@
-# Global
-*code-workspace
-.DS_Store
-data/
-
 # Python
 __pycache__/
 *.py[oc]
@@ -14,5 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
-# Secrets
-service-account.json
+# Project
+*code-workspace
+.DS_Store
+secrets/
+inputs/
+data/

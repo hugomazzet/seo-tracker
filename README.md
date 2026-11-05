@@ -41,34 +41,34 @@ uv sync
 
 La configuration tient en trois éléments : une propriété Search Console, une clé d'accès et une liste de mots clés.
 
-### 1. Vérifier ton site dans Search Console
+### 1. Vérifier le site dans Search Console
 
 Si ce n'est pas déjà fait :
 
-1. Va sur [Search Console](https://search.google.com/search-console) et clique sur **Ajouter une propriété**.
-2. Choisis le type **Domaine** et saisis ton domaine (par exemple `example.com`, sans `https://` ni `www`).
-3. Ajoute chez ton registrar l'enregistrement DNS de type TXT fourni par Google, puis clique sur **Valider**.
+1. Aller sur [Search Console](https://search.google.com/search-console) et cliquer sur **Ajouter une propriété**.
+2. Choisir le type **Domaine** et saisir le domaine (par exemple `example.com`, sans `https://` ni `www`).
+3. Ajouter chez le registrar l'enregistrement DNS de type TXT fourni par Google, puis cliquer sur **Valider**.
 
-Les premières données apparaissent dans Search Console au bout de 2 à 3 jours. Plus tôt tu vérifies ton site, plus ton historique sera long.
+Les premières données apparaissent dans Search Console au bout de 2 à 3 jours. Plus tôt le site est vérifié, plus l'historique sera long.
 
 ### 2. Créer un compte de service Google Cloud
 
 Le script s'authentifie avec un compte de service, sans connexion manuelle.
 
-1. Sur [Google Cloud Console](https://console.cloud.google.com), crée un projet (par exemple `seo-tracker`).
-2. Dans **API et services**, puis **Bibliothèque**, active **Google Search Console API**.
-3. Dans **IAM et administration**, puis **Comptes de service**, crée un compte de service (par exemple `gsc-reader`). Aucun rôle n'est nécessaire.
-4. Ouvre le compte créé, onglet **Clés**, puis **Ajouter une clé**, **Créer une clé**, format **JSON**.
-5. Place le fichier téléchargé à la racine du projet sous le nom `service-account.json`.
-6. Note l'adresse mail du compte de service (`gsc-reader@<projet>.iam.gserviceaccount.com`).
+1. Sur [Google Cloud Console](https://console.cloud.google.com), créer un projet (par exemple `seo-tracker`).
+2. Dans **API et services**, puis **Bibliothèque**, activer **Google Search Console API**.
+3. Dans **IAM et administration**, puis **Comptes de service**, créer un compte de service (par exemple `gsc-reader`). Aucun rôle n'est nécessaire.
+4. Ouvrir le compte créé, onglet **Clés**, puis **Ajouter une clé**, **Créer une clé**, format **JSON**.
+5. Placer le fichier téléchargé dans le dossier `secrets/` du projet sous le nom `service-account.json`.
+6. Noter l'adresse mail du compte de service (`gsc-reader@<projet>.iam.gserviceaccount.com`).
 
 ### 3. Donner accès au compte de service
 
-Dans Search Console, va dans **Paramètres**, puis **Utilisateurs et autorisations**, et ajoute l'adresse mail du compte de service avec l'autorisation **Restreint** (lecture seule, suffisante).
+Dans Search Console, aller dans **Paramètres**, puis **Utilisateurs et autorisations**, et ajouter l'adresse mail du compte de service avec l'autorisation **Restreint** (lecture seule, suffisante).
 
-### 4. Renseigner ta propriété
+### 4. Renseigner la propriété
 
-Dans `src/seo_tracker/gsc_tracker.py`, modifie la constante `SITE` :
+Dans `src/seo_tracker/gsc_tracker.py`, modifier la constante `SITE` :
 
 ```python
 SITE = "sc-domain:example.com"
@@ -83,7 +83,7 @@ Le format dépend du type de propriété :
 
 ### 5. Lister tes mots clés
 
-Crée un fichier `keywords.txt` à la racine du projet, un mot clé par ligne, tel qu'il est tapé dans Google. Les lignes qui commencent par `#` sont ignorées.
+Créer un fichier `keywords.txt` dans le dossier `inputs/` du projet, un mot clé par ligne, tel qu'il est tapé dans Google. Les lignes qui commencent par `#` sont ignorées.
 
 ```text
 # Mes mots clés
@@ -91,7 +91,7 @@ mot clé numéro un
 mot clé numéro deux
 ```
 
-La comparaison est insensible à la casse mais **exacte** : "glace" ne remonte pas "glaces".
+La comparaison est insensible à la casse mais **exacte** : "voiture" ne remonte pas "voitures".
 
 ## Utilisation
 
@@ -149,15 +149,15 @@ Quand un mot clé n'a eu aucune impression un jour donné, une ligne vide (sans 
 
 ## Limites à connaître
 
-- **Position moyenne.** Search Console fournit une moyenne sur la journée, pas un classement en direct. Le résultat varie d'une personne à l'autre (localisation, historique, appareil), la moyenne est donc plus représentative qu'une mesure ponctuelle, mais elle peut différer de ce que tu vois en tapant la requête toi-même.
+- **Position moyenne.** Search Console fournit une moyenne sur la journée, pas un classement en direct. Le résultat varie d'une personne à l'autre (localisation, historique, appareil), la moyenne est donc plus représentative qu'une mesure ponctuelle, mais elle peut différer de ce que l'on voit en tapant la requête soit-même.
 - **Délai de 2 à 3 jours** sur les données.
-- **Impressions nécessaires.** Google ne remonte une requête que si ton site a été affiché au moins une fois. Un mot clé sur lequel tu n'apparais pas du tout n'a pas de position.
+- **Impressions nécessaires.** Google ne remonte une requête que si le site a été affiché au moins une fois. Un mot clé sur lequel le site n'apparais pas du tout n'a pas de position.
 - **Correspondance exacte** avec les requêtes réellement tapées par les internautes.
 
 ## Sécurité
 
-Le fichier `service-account.json` donne accès à tes données Search Console et ne dois jamais être publié.
-Si la clé a été exposée par erreur, supprime-la dans Google Cloud Console (onglet **Clés** du compte de service) et génères-en une nouvelle.
+Le fichier `service-account.json` donne accès aux données Search Console et ne dois jamais être publié.
+Si la clé a été exposée par erreur, il est necessaire de la supprimer dans la Google Cloud Console (onglet **Clés** du compte de service) et d'en génèrer une nouvelle.
 
 ## Structure du projet
 
@@ -175,3 +175,8 @@ seo-tracker/
       __init__.py
       gsc_tracker.py
 ```
+
+## Feuille de route
+
+- Lancement automatique quotidien (launchd sur macOS)
+- Solution de stockage plus adaptée à l'exploration et aux graphiques que le CSV

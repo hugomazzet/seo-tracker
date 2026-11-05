@@ -10,8 +10,8 @@ wheels/
 .venv
 
 # Project
-*code-workspace
 .DS_Store
-secrets/
-inputs/
+*code-workspace
+service-account.json
+keywords.txt
 data/

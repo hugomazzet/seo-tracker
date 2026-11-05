@@ -19,7 +19,7 @@ Pas de scraping de Google, pas de service payant, pas de base de données : un s
 
 ## Fonctionnement
 
-Le script interroge l'API Search Console pour une journée donnée, filtre les requêtes qui correspondent à ta liste de mots clés, puis ajoute une ligne par mot clé et par page dans `data/positions.csv`.
+Le script interroge l'API Search Console pour une journée donnée, filtre les requêtes qui correspondent à la liste de mots clés, puis ajoute une ligne par mot clé dans `data/positions.csv`. Quand plusieurs pages du site sont apparues sur le même mot clé, seule la mieux classée est conservée.
 
 Search Console publie ses données avec 2 à 3 jours de retard. Par défaut, le script récupère donc les données de **J-3**.
 
@@ -130,6 +130,45 @@ uv run seo-tracker --date 2026-11-05 --update
 ```
 
 Les lignes de cette date sont remplacées par les données actuelles de Search Console, les autres dates ne sont pas modifiées. C'est utile quand le script a tourné avant que Google ait publié les données du jour (les lignes à 0 sont alors remplacées par les vraies valeurs).
+
+### Repérer de nouveaux mots clés à suivre
+
+```bash
+uv run seo-tracker --discover
+```
+
+Cette commande interroge Search Console sur les 28 derniers jours (jusqu'à J-3) et affiche les requêtes sur lesquelles le site apparaît et qui ne sont pas présents dans `keywords.txt`. Ne sont retenues que celles proches de la page 1, là où un peu de travail sur la page peut faire gagner des places. Rien n'est enregistré : c'est une aide à la décision d'ajouter ou non les mots clés pertinents dans `keywords.txt`.
+
+Exemple de sortie :
+
+```text
+Période : du 2026-10-06 au 2026-11-02 (28 jours)
+312 requêtes remontées par Google, 2 candidates (position 5 à 20, au moins 5 impressions, hors mots clés déjà suivis)
+
+Position   Impr.  Clics  Requête
+    12.4      80      1  mot clé candidat un
+    19.5      25      0  mot clé candidat deux
+```
+
+Les colonnes sont la position moyenne sur la période, le nombre d'impressions, le nombre de clics et la requête. Les résultats sont triés par impressions décroissantes.
+
+Pour changer la période analysée :
+
+```bash
+uv run seo-tracker --discover --days 60
+```
+
+Les seuils se règlent par les constantes en haut de `src/seo_tracker/gsc_tracker.py` :
+
+| Constante | Rôle | Valeur par défaut |
+| --- | --- | --- |
+| `DISCOVER_DAYS` | Période analysée, en jours | 28 |
+| `DISCOVER_MIN_POSITION` | Position minimale retenue | 5 |
+| `DISCOVER_MAX_POSITION` | Position maximale retenue | 20 |
+| `DISCOVER_MIN_IMPRESSIONS` | Impressions minimales sur la période | 5 |
+| `DISCOVER_LIMIT` | Nombre maximal de lignes affichées | 30 |
+
+La comparaison avec `keywords.txt` est exacte (insensible à la casse) : une variante plus longue d'un mot clé déjà suivi apparaît donc comme une requête distincte.
 
 ## Format des données
 

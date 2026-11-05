@@ -2,11 +2,7 @@
 """Relevé quotidien du positionnement du site via l'API Google Search Console.
 
 Usage :
-  python gsc_tracker.py --test                          vérifie l'accès à la propriété
-  python gsc_tracker.py                                 enregistre les données de J-3
-  python gsc_tracker.py --update                        remplace les données de J-3
-  python gsc_tracker.py --date 2026-11-05               enregistre une date précise
-  python gsc_tracker.py --date 2026-11-05 --update      remplace les données d'une date déjà enregistrée
+  python gsc_tracker.py         enregistre les données de J-3
 """
 
 import argparse
@@ -27,6 +23,13 @@ OUTPUT_FILE = BASE_DIR / "data" / "positions.csv"
 DELAY_DAYS = 3
 SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
 COLUMNS = ["date", "keyword", "page", "position", "clicks", "impressions", "ctr"]
+
+# Réglages de --discover (mots clés candidats)
+DISCOVER_DAYS = 28
+DISCOVER_MIN_POSITION = 1
+DISCOVER_MAX_POSITION = 20
+DISCOVER_MIN_IMPRESSIONS = 5
+DISCOVER_LIMIT = 30
 
 
 def get_service():
@@ -112,20 +115,65 @@ def write_records(day, records):
     tmp_file.replace(OUTPUT_FILE)
 
 
+def discover(service, days):
+    """Affiche les requêtes proches de la page 1 qui ne sont pas encore suivies."""
+    end = date.today() - timedelta(days=DELAY_DAYS)
+    start = end - timedelta(days=days - 1)
+    body = {
+        "startDate": start.isoformat(),
+        "endDate": end.isoformat(),
+        "dimensions": ["query"],
+        "rowLimit": 25000,
+    }
+    response = service.searchanalytics().query(siteUrl=SITE, body=body).execute()
+    rows = response.get("rows", [])
+
+    tracked = set(load_keywords())
+    candidates = [
+        row
+        for row in rows
+        if row["keys"][0].lower() not in tracked
+        and DISCOVER_MIN_POSITION <= row["position"] <= DISCOVER_MAX_POSITION
+        and row["impressions"] >= DISCOVER_MIN_IMPRESSIONS
+    ]
+    candidates.sort(key=lambda row: row["impressions"], reverse=True)
+
+    print(f"Période : du {start} au {end} ({days} jours)")
+    print(
+        f"{len(rows)} requêtes remontées par Google, {len(candidates)} candidates "
+        f"(position {DISCOVER_MIN_POSITION} à {DISCOVER_MAX_POSITION}, "
+        f"au moins {DISCOVER_MIN_IMPRESSIONS} impressions, hors mots clés déjà suivis)"
+    )
+    if not candidates:
+        return
+
+    print()
+    print(f"{'Position':>8}  {'Impr.':>6}  {'Clics':>5}  Requête")
+    for row in candidates[:DISCOVER_LIMIT]:
+        print(
+            f"{row['position']:8.1f}  {row['impressions']:6.0f}  "
+            f"{row['clicks']:5.0f}  {row['keys'][0]}"
+        )
+    if len(candidates) > DISCOVER_LIMIT:
+        print(f"... et {len(candidates) - DISCOVER_LIMIT} autres (limite d'affichage : {DISCOVER_LIMIT})")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--test", action="store_true")
-    parser.add_argument("--date")
-    parser.add_argument(
-        "--update",
-        action="store_true",
-        help="remplace les données si la date est déjà enregistrée",
-    )
+    parser.add_argument("--test", action="store_true", help="vérifie l'accès à la propriété Google Search Console")
+    parser.add_argument("--date", help="enregistre une date précise (au format AAA-MM-DD)")
+    parser.add_argument("--update", action="store_true", help="remplace les données si la date est déjà enregistrée")
+    parser.add_argument("--discover", action="store_true", help="affiche les mots clés candidats non suivis")
+    parser.add_argument("--days", type=int, default=DISCOVER_DAYS, help=f"période analysée par --discover en jours (défaut : {DISCOVER_DAYS})")
     args = parser.parse_args()
 
     service = get_service()
+
+    if args.discover:
+        discover(service, args.days)
+        return
 
     if args.test:
         entries = service.sites().list().execute().get("siteEntry", [])

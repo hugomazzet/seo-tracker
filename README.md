@@ -91,7 +91,7 @@ mot clé numéro un
 mot clé numéro deux
 ```
 
-La comparaison est insensible à la casse mais **exacte** : "voiture" ne remonte pas "voitures".
+La comparaison est insensible à la casse mais **exacte** : "photographe paris" ne remonte pas "photographe paris pas cher".
 
 ## Utilisation
 
@@ -133,16 +133,16 @@ Les lignes de cette date sont remplacées par les données actuelles de Search C
 
 ## Format des données
 
-Les résultats sont ajoutés à `data/positions.csv` (le dossier est créé automatiquement). Une ligne correspond à un mot clé et à une page pour une date.
+Les résultats sont ajoutés à `data/positions.csv` (le dossier est créé automatiquement). Une ligne correspond à un mot clé pour une date.
 
 | Colonne | Description |
 | --- | --- |
 | `date` | Jour concerné (format AAAA-MM-JJ) |
 | `keyword` | Mot clé suivi |
-| `page` | URL de la page positionnée sur ce mot clé |
-| `position` | Position moyenne dans les résultats Google ce jour-là |
-| `clicks` | Nombre de clics |
-| `impressions` | Nombre d'affichages dans les résultats |
+| `page` | URL de la page la mieux classée sur ce mot clé |
+| `position` | Position moyenne de cette page dans les résultats Google ce jour-là |
+| `clicks` | Nombre de clics sur cette page pour ce mot clé |
+| `impressions` | Nombre d'affichages de cette page dans les résultats |
 | `ctr` | Taux de clic (clics divisés par impressions) |
 
 Exemple :
@@ -161,6 +161,7 @@ Quand un mot clé n'a eu aucune impression un jour donné, une ligne vide (sans 
 - **Délai de 2 à 3 jours** sur les données.
 - **Impressions nécessaires.** Google ne remonte une requête que si le site a été affiché au moins une fois. Un mot clé sur lequel le site n'apparais pas du tout n'a pas de position.
 - **Correspondance exacte** avec les requêtes réellement tapées par les internautes.
+- **Une seule page par mot clé.** Si plusieurs pages du site se positionnent sur la même requête, seule la mieux classée est enregistrée (en cas d'égalité, celle qui a le plus d'impressions). Les clics et impressions des autres pages ne sont pas comptés.
 
 ## Sécurité
 

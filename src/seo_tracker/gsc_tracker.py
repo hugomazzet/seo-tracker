@@ -2,9 +2,9 @@
 """Relevé quotidien du positionnement du site via l'API Google Search Console.
 
 Usage :
-  python gsc_tracker.py --test          vérifie l'accès à la propriété
-  python gsc_tracker.py                 enregistre les données de J-3
-  python gsc_tracker.py --date 2026-11-05
+  python gsc_tracker.py --test              vérifie l'accès à la propriété
+  python gsc_tracker.py                     enregistre les données de J-3
+  python gsc_tracker.py --date 2026-11-05   enregistre les données de la date
 """
 
 import argparse

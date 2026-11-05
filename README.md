@@ -170,6 +170,22 @@ Les seuils se règlent par les constantes en haut de `src/seo_tracker/gsc_tracke
 
 La comparaison avec `keywords.txt` est exacte (insensible à la casse) : une variante plus longue d'un mot clé déjà suivi apparaît donc comme une requête distincte.
 
+### Générer un rapport visuel
+
+```bash
+uv run seo-tracker --report
+```
+
+Cette commande lit `data/positions.csv` et génère `data/report.html`, qui s'ouvre dans n'importe quel navigateur (sur macOS : `open data/report.html`). Elle ne contacte pas Google et ne nécessite ni clé ni connexion.
+
+Le rapport contient :
+
+- **Situation actuelle** : un tableau avec, pour chaque mot clé, la dernière position connue, son évolution par rapport à au moins 7 jours plus tôt (en places gagnées ou perdues), les impressions et clics cumulés, la page positionnée et la date du dernier relevé. Une position en gris signale moins de 10 impressions ce jour-là, donc une valeur peu fiable.
+- **Position par mot clé** : une courbe par mot clé dans le temps, avec l'axe inversé (la position 1 en haut) et la page 1 en surbrillance. Un trou dans une courbe signifie qu'il n'y a pas eu d'impression ce jour-là. Un clic sur un mot clé dans la légende l'affiche ou le masque.
+- **Impressions et clics** : les totaux quotidiens sur l'ensemble des mots clés suivis.
+
+Le fichier est autonome (la bibliothèque de graphiques y est embarquée, il pèse environ 5 Mo) et il est entièrement régénéré à chaque exécution. Les seuils du tableau se règlent par les constantes en haut de `src/seo_tracker/report.py` (`LOW_IMPRESSIONS`, `TREND_DAYS`).
+
 ## Format des données
 
 Les résultats sont ajoutés à `data/positions.csv` (le dossier est créé automatiquement). Une ligne correspond à un mot clé pour une date.
@@ -227,4 +243,6 @@ seo-tracker/
 ## Feuille de route
 
 - Lancement automatique quotidien (launchd sur macOS)
-- Solution de stockage plus adaptée à l'exploration et aux graphiques que le CSV
+- Lissage des positions sur 7 jours, pondéré par les impressions, dans le rapport
+- Génération automatique du rapport après chaque relevé quotidien
+- Solution de stockage plus adaptée à l'exploration que le CSV

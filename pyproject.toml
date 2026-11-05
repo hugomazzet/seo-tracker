@@ -10,6 +10,7 @@ requires-python = ">=3.15"
 dependencies = [
     "google-api-python-client>=2.201.0",
     "google-auth>=2.62.1",
+    "plotly>=7.1.0",
 ]
 
 [project.scripts]

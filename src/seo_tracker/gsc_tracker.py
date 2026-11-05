@@ -18,6 +18,7 @@ SITE = "sc-domain:hugomazet.com"
 KEY_FILE = BASE_DIR / "secrets" / "service-account.json"
 KEYWORDS_FILE = BASE_DIR / "inputs" / "keywords.txt"
 OUTPUT_FILE = BASE_DIR / "data" / "positions.csv"
+REPORT_FILE = BASE_DIR / "data" / "report.html"
 
 # Search Console publie ses données avec 2 à 3 jours de retard
 DELAY_DAYS = 3
@@ -26,7 +27,7 @@ COLUMNS = ["date", "keyword", "page", "position", "clicks", "impressions", "ctr"
 
 # Réglages de --discover (mots clés candidats)
 DISCOVER_DAYS = 28
-DISCOVER_MIN_POSITION = 1
+DISCOVER_MIN_POSITION = 5
 DISCOVER_MAX_POSITION = 20
 DISCOVER_MIN_IMPRESSIONS = 5
 DISCOVER_LIMIT = 30
@@ -167,7 +168,15 @@ def main():
     parser.add_argument("--update", action="store_true", help="remplace les données si la date est déjà enregistrée")
     parser.add_argument("--discover", action="store_true", help="affiche les mots clés candidats non suivis")
     parser.add_argument("--days", type=int, default=DISCOVER_DAYS, help=f"période analysée par --discover en jours (défaut : {DISCOVER_DAYS})")
+    parser.add_argument("--report", action="store_true", help="génère le rapport HTML à partir du CSV (open data/report.html)")
     args = parser.parse_args()
+
+    if args.report:
+        # Import ici : le reste du script fonctionne même sans plotly installé
+        from seo_tracker.report import generate_report
+
+        generate_report(OUTPUT_FILE, REPORT_FILE)
+        return
 
     service = get_service()
 

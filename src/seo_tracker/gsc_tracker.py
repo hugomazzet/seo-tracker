@@ -2,9 +2,11 @@
 """Relevé quotidien du positionnement du site via l'API Google Search Console.
 
 Usage :
-  python gsc_tracker.py --test              vérifie l'accès à la propriété
-  python gsc_tracker.py                     enregistre les données de J-3
-  python gsc_tracker.py --date 2026-11-05   enregistre les données de la date
+  python gsc_tracker.py --test                          vérifie l'accès à la propriété
+  python gsc_tracker.py                                 enregistre les données de J-3
+  python gsc_tracker.py --update                        remplace les données de J-3
+  python gsc_tracker.py --date 2026-11-05               enregistre une date précise
+  python gsc_tracker.py --date 2026-11-05 --update      remplace les données d'une date déjà enregistrée
 """
 
 import argparse
@@ -54,11 +56,11 @@ def fetch_rows(service, day):
     return response.get("rows", [])
 
 
-def day_already_logged(day):
+def read_existing():
     if not OUTPUT_FILE.exists():
-        return False
+        return []
     with OUTPUT_FILE.open(encoding="utf-8", newline="") as f:
-        return any(row["date"] == day for row in csv.DictReader(f))
+        return list(csv.DictReader(f))
 
 
 def build_records(day, keywords, rows):
@@ -88,14 +90,22 @@ def build_records(day, keywords, rows):
     return records
 
 
-def append_records(records):
+def write_records(day, records):
+    """Écrit les lignes du jour en remplaçant celles déjà présentes pour cette date."""
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    is_new = not OUTPUT_FILE.exists()
-    with OUTPUT_FILE.open("a", encoding="utf-8", newline="") as f:
-        writer = csv.writer(f)
-        if is_new:
-            writer.writerow(COLUMNS)
-        writer.writerows(records)
+    kept = [row for row in read_existing() if row["date"] != day]
+    new = [dict(zip(COLUMNS, record)) for record in records]
+    # Tri stable : l'ordre est chronologique même si on met à jour une date ancienne
+    all_rows = sorted(kept + new, key=lambda row: row["date"])
+
+    # Écriture dans un fichier temporaire puis remplacement, pour ne jamais
+    # laisser un CSV à moitié écrit en cas d'erreur
+    tmp_file = OUTPUT_FILE.with_suffix(".csv.tmp")
+    with tmp_file.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=COLUMNS)
+        writer.writeheader()
+        writer.writerows(all_rows)
+    tmp_file.replace(OUTPUT_FILE)
 
 
 def main():
@@ -104,6 +114,11 @@ def main():
     )
     parser.add_argument("--test", action="store_true")
     parser.add_argument("--date")
+    parser.add_argument(
+        "--update",
+        action="store_true",
+        help="remplace les données si la date est déjà enregistrée",
+    )
     args = parser.parse_args()
 
     service = get_service()
@@ -112,7 +127,7 @@ def main():
         entries = service.sites().list().execute().get("siteEntry", [])
         if not entries:
             print(
-                "Aucune propriété accessible : vérifie que le compte de service "
+                "Aucune propriété accessible : vérifier que le compte de service "
                 "a bien été ajouté dans Search Console."
             )
         for entry in entries:
@@ -120,15 +135,18 @@ def main():
         return
 
     day = args.date or (date.today() - timedelta(days=DELAY_DAYS)).isoformat()
-    if day_already_logged(day):
-        print(f"{day} déjà enregistré, rien à faire.")
+    already_logged = any(row["date"] == day for row in read_existing())
+    if already_logged and not args.update:
+        print(f"{day} déjà enregistré. Relancer avec --update pour remplacer les données.")
         return
 
     keywords = load_keywords()
     rows = fetch_rows(service, day)
     records = build_records(day, keywords, rows)
-    append_records(records)
-    print(f"{day} : {len(records)} lignes ajoutées ({len(rows)} lignes remontées par Google).")
+    write_records(day, records)
+
+    action = "mises à jour" if already_logged else "ajoutées"
+    print(f"{day} : {len(records)} lignes {action} ({len(rows)} lignes remontées par Google).")
 
 
 if __name__ == "__main__":

@@ -121,7 +121,15 @@ Relever une date précise :
 uv run seo-tracker --date 2026-11-05
 ```
 
-Si une date est déjà présente dans le CSV, le script n'ajoute rien : on peut le relancer sans créer de doublons.
+Si une date est déjà présente dans le CSV, le script n'y touche pas et ne crée donc jamais de doublons.
+
+Mettre à jour une date déjà enregistrée :
+
+```bash
+uv run seo-tracker --date 2026-11-05 --update
+```
+
+Les lignes de cette date sont remplacées par les données actuelles de Search Console, les autres dates ne sont pas modifiées. C'est utile quand le script a tourné avant que Google ait publié les données du jour (les lignes à 0 sont alors remplacées par les vraies valeurs).
 
 ## Format des données
 

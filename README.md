@@ -81,7 +81,7 @@ Le format dépend du type de propriété :
 | Domaine (vérification DNS) | `sc-domain:example.com` |
 | Préfixe d'URL | `https://example.com/` (avec le slash final) |
 
-### 5. Lister tes mots clés
+### 5. Lister les mots clés
 
 Créer un fichier `keywords.txt` dans le dossier `inputs/` du projet, un mot clé par ligne, tel qu'il est tapé dans Google. Les lignes qui commencent par `#` sont ignorées.
 
@@ -137,7 +137,7 @@ Les lignes de cette date sont remplacées par les données actuelles de Search C
 uv run seo-tracker --discover
 ```
 
-Cette commande interroge Search Console sur les 28 derniers jours (jusqu'à J-3) et affiche les requêtes sur lesquelles le site apparaît et qui ne sont pas présents dans `keywords.txt`. Ne sont retenues que celles proches de la page 1, là où un peu de travail sur la page peut faire gagner des places. Rien n'est enregistré : c'est une aide à la décision d'ajouter ou non les mots clés pertinents dans `keywords.txt`.
+Cette commande interroge Search Console sur les 28 derniers jours (jusqu'à J-3) et affiche les requêtes sur lesquelles le site apparaît et qui ne sont pas présentes dans `keywords.txt`. Ne sont retenues que celles proches de la page 1, là où un peu de travail sur la page peut faire gagner des places. Rien n'est enregistré : c'est une aide à la décision d'ajouter ou non les mots clés pertinents dans `keywords.txt`.
 
 Exemple de sortie :
 
@@ -212,16 +212,23 @@ Quand un mot clé n'a eu aucune impression un jour donné, une ligne vide (sans 
 
 ## Limites à connaître
 
-- **Position moyenne.** Search Console fournit une moyenne sur la journée, pas un classement en direct. Le résultat varie d'une personne à l'autre (localisation, historique, appareil), la moyenne est donc plus représentative qu'une mesure ponctuelle, mais elle peut différer de ce que l'on voit en tapant la requête soit-même.
+- **Position moyenne.** Search Console fournit une moyenne sur la journée, pas un classement en direct. Le résultat varie d'une personne à l'autre (localisation, historique, appareil), la moyenne est donc plus représentative qu'une mesure ponctuelle, mais elle peut différer de ce que l'on voit en tapant la requête soi-même.
 - **Délai de 2 à 3 jours** sur les données.
-- **Impressions nécessaires.** Google ne remonte une requête que si le site a été affiché au moins une fois. Un mot clé sur lequel le site n'apparais pas du tout n'a pas de position.
+- **Impressions nécessaires.** Google ne remonte une requête que si le site a été affiché au moins une fois. Un mot clé sur lequel le site n'apparaît pas du tout n'a pas de position.
 - **Correspondance exacte** avec les requêtes réellement tapées par les internautes.
 - **Une seule page par mot clé.** Si plusieurs pages du site se positionnent sur la même requête, seule la mieux classée est enregistrée (en cas d'égalité, celle qui a le plus d'impressions). Les clics et impressions des autres pages ne sont pas comptés.
 
 ## Sécurité
 
-Le fichier `service-account.json` donne accès aux données Search Console et ne dois jamais être publié.
-Si la clé a été exposée par erreur, il est necessaire de la supprimer dans la Google Cloud Console (onglet **Clés** du compte de service) et d'en génèrer une nouvelle.
+Le fichier `service-account.json` donne accès aux données Search Console et ne doit jamais être publié.
+Si la clé a été exposée par erreur, il est nécessaire de la supprimer dans la Google Cloud Console (onglet **Clés** du compte de service) et d'en générer une nouvelle.
+
+```gitignore
+secrets/
+inputs/
+data/
+.venv/
+```
 
 ## Structure du projet
 
@@ -233,11 +240,13 @@ seo-tracker/
   secrets/
     service-account.json      (à ajouter, voir Configuration)
   data/
-    positions.csv             (créé automatiquement)
+    positions.csv             (créé automatiquement avec le premer run)
+    report.html               (crée automatiquement avec la commande --report)
   src/
     seo_tracker/
       __init__.py
       gsc_tracker.py
+      report.py
 ```
 
 ## Feuille de route

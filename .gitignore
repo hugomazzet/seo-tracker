@@ -11,7 +11,7 @@ wheels/
 
 # Project
 .DS_Store
-*code-workspace
+*.code-workspace
 secrets/
 inputs/
 data/

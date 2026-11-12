@@ -164,7 +164,7 @@ def main():
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--test", action="store_true", help="vérifie l'accès à la propriété Google Search Console")
-    parser.add_argument("--date", help="enregistre une date précise (au format AAA-MM-DD)")
+    parser.add_argument("--date", help="enregistre une date précise (au format AAAA-MM-DD)")
     parser.add_argument("--update", action="store_true", help="remplace les données si la date est déjà enregistrée")
     parser.add_argument("--discover", action="store_true", help="affiche les mots clés candidats non suivis")
     parser.add_argument("--days", type=int, default=DISCOVER_DAYS, help=f"période analysée par --discover en jours (défaut : {DISCOVER_DAYS})")

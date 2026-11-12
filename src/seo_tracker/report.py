@@ -20,6 +20,58 @@ LOW_IMPRESSIONS = 10
 TREND_DAYS = 7
 # La page 1 de Google correspond aux positions 1 à 10
 PAGE_ONE_LAST = 10
+# Granularités de la courbe de position : (clé, libellé, format des dates de l'axe,
+# graduation de l'axe : None = automatique, "M1" = un repère par mois)
+GRANULARITIES = [
+    ("day", "Jour", "%d/%m", None),
+    ("week", "Semaine", "%d/%m", None),
+    ("month", "Mois", "%m/%Y", "M1"),
+]
+# À partir de ce nombre de jours relevés, la vue Semaine est affichée par défaut
+WEEK_DEFAULT_MIN_DAYS = 14
+# Couleurs des mots clés (identiques quelle que soit la granularité)
+COLORS = [
+    "#636efa", "#ef553b", "#00cc96", "#ab63fa", "#ffa15a",
+    "#19d3f3", "#ff6692", "#b6e880", "#ff97ff", "#fecb52",
+]
+
+# Bascule de granularité : on garde la sélection du mot clé masqué dans la légende
+GRANULARITY_SCRIPT = """
+(function () {
+  var gd = document.getElementById("positions-chart");
+  var buttons = document.querySelectorAll(".gran button");
+  var hidden = {};
+
+  function current() {
+    return document.querySelector(".gran button.active").dataset.gran;
+  }
+
+  function show(button) {
+    var gran = button.dataset.gran;
+    var previous = current();
+    gd.data.forEach(function (t) {
+      if (t.meta === previous) { hidden[t.name] = (t.visible === "legendonly"); }
+    });
+    var visible = [];
+    var legend = [];
+    gd.data.forEach(function (t) {
+      var on = t.meta === gran;
+      visible.push(on ? (hidden[t.name] ? "legendonly" : true) : false);
+      legend.push(on);
+    });
+    Plotly.restyle(gd, { visible: visible, showlegend: legend });
+    Plotly.relayout(gd, {
+      "xaxis.tickformat": button.dataset.format,
+      "xaxis.dtick": button.dataset.dtick || null
+    });
+    buttons.forEach(function (b) { b.classList.toggle("active", b === button); });
+  }
+
+  buttons.forEach(function (b) {
+    b.addEventListener("click", function () { show(b); });
+  });
+})();
+"""
 
 PAGE_TEMPLATE = Template("""<!DOCTYPE html>
 <html lang="fr">
@@ -57,6 +109,12 @@ PAGE_TEMPLATE = Template("""<!DOCTYPE html>
   .low { color: #9ca3af; font-style: italic; }
   .muted { color: #9ca3af; }
   .warn { color: #b45309; font-weight: 600; cursor: help; }
+  .gran { display: inline-flex; gap: 2px; padding: 3px; background: #f0f1f3; border-radius: 8px; margin: 0 0 8px; }
+  .gran button {
+    border: 0; background: transparent; padding: 5px 14px; border-radius: 6px;
+    font: inherit; font-size: 13px; color: #4b5563; cursor: pointer;
+  }
+  .gran button.active { background: #ffffff; color: #1f2937; font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
   a { color: #2563eb; text-decoration: none; }
   a:hover { text-decoration: underline; }
 </style>
@@ -81,11 +139,16 @@ PAGE_TEMPLATE = Template("""<!DOCTYPE html>
 
   <section>
     <h2>Position par mot clé</h2>
+    $granularity_controls
     $positions
+    <script>$granularity_script</script>
     <p class="note">
       Plus la courbe est haute, mieux le site est classé. La zone verte correspond à la page 1.
       Si plusieurs pages sont positionnées sur un mot clé, la courbe suit la mieux classée.
-      Un trou dans une courbe signifie qu'aucune impression n'a été enregistrée ce jour-là.
+      En vue Semaine ou Mois, la position est une moyenne pondérée par les impressions : un jour à 80
+      impressions pèse plus qu'un jour à 2. Un point pâle correspond à moins de $low_impressions impressions
+      sur la période, donc à une position peu fiable.
+      Un trou dans une courbe signifie qu'aucune impression n'a été enregistrée sur la période.
       Clique sur un mot clé dans la légende pour l'afficher ou le masquer.
     </p>
   </section>
@@ -151,7 +214,78 @@ def _style(fig, height):
     )
 
 
-def positions_figure(groups):
+def _period_start(day, granularity):
+    if granularity == "week":
+        return day - timedelta(days=day.weekday())
+    if granularity == "month":
+        return day.replace(day=1)
+    return day
+
+
+def _next_period(start, granularity):
+    if granularity == "week":
+        return start + timedelta(days=7)
+    if granularity == "month":
+        return (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return start + timedelta(days=1)
+
+
+def _period_label(start, granularity):
+    if granularity == "week":
+        return f"Semaine du {start:%d/%m/%Y}"
+    if granularity == "month":
+        return f"{start:%m/%Y}"
+    return f"{start:%d/%m/%Y}"
+
+
+def _periods(first, last, granularity):
+    """Toutes les périodes entre deux dates, pour que les trous restent visibles."""
+    periods = []
+    current = _period_start(first, granularity)
+    while current <= last:
+        periods.append(current)
+        current = _next_period(current, granularity)
+    return periods
+
+
+def aggregate_positions(rows, granularity, first, last):
+    """Position par période : moyenne des positions quotidiennes (page la mieux
+    classée chaque jour), pondérée par les impressions de chaque jour."""
+    buckets = defaultdict(list)
+    for row in best_per_day(rows):
+        if row["position"] is not None:
+            start = _period_start(date.fromisoformat(row["date"]), granularity)
+            buckets[start].append(row)
+
+    points = []
+    for start in _periods(first, last, granularity):
+        items = buckets.get(start)
+        if not items:
+            points.append({"start": start, "position": None, "impressions": 0, "days": 0, "page": ""})
+            continue
+        impressions = sum(r["impressions"] for r in items)
+        if impressions:
+            position = sum(r["position"] * r["impressions"] for r in items) / impressions
+        else:
+            position = sum(r["position"] for r in items) / len(items)
+        points.append({
+            "start": start,
+            "position": position,
+            "impressions": impressions,
+            "days": len(items),
+            "page": items[0]["page"],
+        })
+    return points
+
+
+def _detail(point, granularity):
+    if granularity == "day":
+        return point["page"]
+    days = point["days"]
+    return f"{days} jour avec données" if days == 1 else f"{days} jours avec données"
+
+
+def positions_figure(groups, default_granularity, first, last):
     fig = go.Figure()
     fig.add_hrect(
         y0=1,
@@ -163,25 +297,61 @@ def positions_figure(groups):
         annotation_position="bottom left",
         annotation_font_color="#15803d",
     )
+    color_index = 0
     for keyword, rows in groups.items():
-        # La courbe suit la page la mieux classée chaque jour
-        rows = best_per_day(rows)
         if all(r["position"] is None for r in rows):
             continue
-        fig.add_trace(go.Scatter(
-            x=[r["date"] for r in rows],
-            y=[r["position"] for r in rows],
-            customdata=[[r["impressions"], r["page"]] for r in rows],
-            name=keyword,
-            mode="lines+markers",
-            hovertemplate="%{x}<br>Position %{y:.1f}<br>%{customdata[0]} impressions<br>%{customdata[1]}<extra>%{fullData.name}</extra>",
-        ))
+        # Même couleur pour un mot clé quelle que soit la granularité
+        color = COLORS[color_index % len(COLORS)]
+        color_index += 1
+        for granularity, _label, _format, _dtick in GRANULARITIES:
+            points = aggregate_positions(rows, granularity, first, last)
+            active = granularity == default_granularity
+            fig.add_trace(go.Scatter(
+                x=[p["start"].isoformat() for p in points],
+                y=[p["position"] for p in points],
+                customdata=[
+                    [
+                        p["impressions"],
+                        _detail(p, granularity),
+                        _period_label(p["start"], granularity),
+                        " (peu fiable)" if p["impressions"] < LOW_IMPRESSIONS else "",
+                    ]
+                    for p in points
+                ],
+                name=keyword,
+                meta=granularity,
+                visible=active,
+                showlegend=active,
+                mode="lines+markers",
+                line=dict(color=color),
+                marker=dict(
+                    color=color,
+                    opacity=[1 if p["impressions"] >= LOW_IMPRESSIONS else 0.35 for p in points],
+                ),
+                hovertemplate=(
+                    "%{customdata[2]}<br>Position %{y:.1f}"
+                    "<br>%{customdata[0]} impressions%{customdata[3]}"
+                    "<br>%{customdata[1]}<extra>%{fullData.name}</extra>"
+                ),
+            ))
     _style(fig, 480)
     fig.update_layout(
         yaxis=dict(title="Position", autorange="reversed"),
         legend=dict(orientation="h", y=-0.2),
     )
     return fig
+
+
+def controls_html(default_granularity):
+    parts = []
+    for key, label, tick_format, dtick in GRANULARITIES:
+        css = ' class="active"' if key == default_granularity else ""
+        tick = f' data-dtick="{dtick}"' if dtick else ""
+        parts.append(
+            f'<button type="button" data-gran="{key}" data-format="{tick_format}"{tick}{css}>{label}</button>'
+        )
+    return '<div class="gran" role="group" aria-label="Granularité">' + "".join(parts) + "</div>"
 
 
 def traffic_figure(rows):
@@ -353,8 +523,17 @@ def generate_report(csv_file, output_file):
     plotly_config = {"displaylogo": False}
     # La bibliothèque Plotly est embarquée une seule fois (dans le premier graphique)
     # pour que le fichier fonctionne sans connexion
-    positions = positions_figure(groups).to_html(
-        full_html=False, include_plotlyjs=True, config=plotly_config
+    default_granularity = "week" if days >= WEEK_DEFAULT_MIN_DAYS else "day"
+    positions = positions_figure(
+        groups,
+        default_granularity,
+        date.fromisoformat(rows[0]["date"]),
+        date.fromisoformat(rows[-1]["date"]),
+    ).to_html(
+        full_html=False,
+        include_plotlyjs=True,
+        config=plotly_config,
+        div_id="positions-chart",
     )
     traffic = traffic_figure(rows).to_html(
         full_html=False, include_plotlyjs=False, config=plotly_config
@@ -364,6 +543,8 @@ def generate_report(csv_file, output_file):
         period=period,
         generated=datetime.now().strftime("%d/%m/%Y à %H:%M"),
         table=table_html(summarize(groups)),
+        granularity_controls=controls_html(default_granularity),
+        granularity_script=GRANULARITY_SCRIPT,
         positions=positions,
         traffic=traffic,
         trend_days=TREND_DAYS,

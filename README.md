@@ -181,10 +181,10 @@ Cette commande lit `data/positions.csv` et génère `data/report.html`, qui s'ou
 Le rapport contient :
 
 - **Situation actuelle** : un tableau avec, pour chaque mot clé, la dernière position connue (celle de la page la mieux classée), son évolution par rapport à au moins 7 jours plus tôt (en places gagnées ou perdues), les impressions et clics cumulés de toutes les pages, le nombre de pages positionnées au dernier relevé, la page la mieux classée et la date du dernier relevé. Une position en gris signale moins de 10 impressions ce jour-là, donc une valeur peu fiable. Le nombre de pages passe en orange dès que plusieurs pages se partagent le mot clé, ce qui peut signaler une cannibalisation : le survol affiche le détail (page, position, impressions).
-- **Position par mot clé** : une courbe par mot clé dans le temps (celle de la page la mieux classée), avec l'axe inversé (la position 1 en haut) et la page 1 en surbrillance. Un trou dans une courbe signifie qu'il n'y a pas eu d'impression ce jour-là. Un clic sur un mot clé dans la légende l'affiche ou le masque.
+- **Position par mot clé** : une courbe par mot clé dans le temps (celle de la page la mieux classée), avec l'axe inversé (la position 1 en haut) et la page 1 en surbrillance. Un sélecteur **Jour, Semaine, Mois** change la granularité : en vue Semaine ou Mois, la position est la moyenne des positions quotidiennes pondérée par les impressions (un jour à 80 impressions pèse plus qu'un jour à 2), ce qui lisse le bruit et fait ressortir la tendance. La vue Semaine s'affiche par défaut à partir de 14 jours de données, la vue Jour avant. Un point pâle correspond à moins de 10 impressions sur la période, donc à une position peu fiable. Un trou dans une courbe signifie qu'il n'y a pas eu d'impression sur la période. Un clic sur un mot clé dans la légende l'affiche ou le masque.
 - **Impressions et clics** : les totaux quotidiens sur l'ensemble des mots clés suivis.
 
-Le fichier est autonome (la bibliothèque de graphiques y est embarquée, il pèse environ 5 Mo) et il est entièrement régénéré à chaque exécution. Les seuils du tableau se règlent par les constantes en haut de `src/seo_tracker/report.py` (`LOW_IMPRESSIONS`, `TREND_DAYS`).
+Le fichier est autonome (la bibliothèque de graphiques y est embarquée, il pèse environ 5 Mo) et il est entièrement régénéré à chaque exécution. Les seuils du tableau se règlent par les constantes en haut de `src/seo_tracker/report.py` (`LOW_IMPRESSIONS`, `TREND_DAYS`, `WEEK_DEFAULT_MIN_DAYS`).
 
 ## Format des données
 
@@ -255,6 +255,5 @@ seo-tracker/
 ## Feuille de route
 
 - Lancement automatique quotidien (launchd sur macOS)
-- Lissage des positions sur 7 jours, pondéré par les impressions, dans le rapport
 - Génération automatique du rapport après chaque relevé quotidien
 - Solution de stockage plus adaptée à l'exploration que le CSV

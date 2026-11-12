@@ -16,8 +16,11 @@ import plotly.graph_objects as go
 
 # En dessous de ce nombre d'impressions, la position moyenne est peu fiable
 LOW_IMPRESSIONS = 10
-# Écart de référence (en jours) pour la colonne "Évolution"
+# Durée (en jours) de chacune des deux périodes comparées dans la colonne "Évolution"
 TREND_DAYS = 7
+# Cannibalisation : une page compte comme "en concurrence" à partir de ce nombre
+# d'impressions sur la période (la page la plus vue compte toujours)
+CANNIBAL_MIN_IMPRESSIONS = 5
 # La page 1 de Google correspond aux positions 1 à 10
 PAGE_ONE_LAST = 10
 # Granularités de la courbe de position : (clé, libellé, format des dates de l'axe,
@@ -128,12 +131,15 @@ PAGE_TEMPLATE = Template("""<!DOCTYPE html>
     <h2>Situation actuelle</h2>
     <div class="table-wrap">$table</div>
     <p class="note">
-      Position et page : celles de la page la mieux classée. Impressions et clics : toutes pages confondues.
-      Évolution : places gagnées (+) ou perdues (-) par rapport à la dernière position connue
-      d'au moins $trend_days jours plus tôt. Position en gris : moins de $low_impressions impressions
-      ce jour-là, donc peu fiable.
-      Nb pages : nombre de pages du site positionnées sur le mot clé au dernier relevé. Le chiffre passe en orange
-      dès que plusieurs pages se partagent le mot clé (risque de cannibalisation) : survole-le pour voir le détail.
+      Position : moyenne des $trend_days derniers jours, pondérée par les impressions (chaque jour compte la page
+      la mieux classée). Page : la mieux classée au dernier relevé. Impressions et clics : toutes pages confondues.
+      Évolution : places gagnées (+) ou perdues (-) entre cette moyenne et celle des $trend_days jours précédents.
+      En gris : moins de $low_impressions impressions sur la période (ou sur l'une des deux pour l'évolution),
+      donc peu fiable.
+      Nb pages : pages du site positionnées sur le mot clé sur les $trend_days derniers jours. Les pages marginales
+      (moins de $cannibal_min impressions) ne sont pas comptées, sauf la plus vue. Le chiffre passe en orange dès que
+      plusieurs pages se partagent le mot clé (risque de cannibalisation) : survole-le pour voir le détail
+      (position moyenne et impressions de chaque page).
     </p>
   </section>
 
@@ -248,6 +254,21 @@ def _periods(first, last, granularity):
     return periods
 
 
+def weighted_position(items):
+    """Position moyenne pondérée par les impressions, et impressions cumulées.
+
+    items : lignes (une par jour, page la mieux classée) avec une position.
+    """
+    if not items:
+        return None, 0
+    impressions = sum(r["impressions"] for r in items)
+    if impressions:
+        position = sum(r["position"] * r["impressions"] for r in items) / impressions
+    else:
+        position = sum(r["position"] for r in items) / len(items)
+    return position, impressions
+
+
 def aggregate_positions(rows, granularity, first, last):
     """Position par période : moyenne des positions quotidiennes (page la mieux
     classée chaque jour), pondérée par les impressions de chaque jour."""
@@ -263,11 +284,7 @@ def aggregate_positions(rows, granularity, first, last):
         if not items:
             points.append({"start": start, "position": None, "impressions": 0, "days": 0, "page": ""})
             continue
-        impressions = sum(r["impressions"] for r in items)
-        if impressions:
-            position = sum(r["position"] * r["impressions"] for r in items) / impressions
-        else:
-            position = sum(r["position"] for r in items) / len(items)
+        position, impressions = weighted_position(items)
         points.append({
             "start": start,
             "position": position,
@@ -392,37 +409,78 @@ def traffic_figure(rows):
     return fig
 
 
-def summarize(groups):
+def pages_in_window(rows, start):
+    """Pages positionnées depuis `start` (date ISO) : position moyenne pondérée et
+    impressions de chaque page. La page la plus vue compte toujours comme
+    "en concurrence", les autres à partir de CANNIBAL_MIN_IMPRESSIONS."""
+    by_page = defaultdict(list)
+    for row in rows:
+        if row["date"] >= start and row["position"] is not None:
+            by_page[row["page"]].append(row)
+
+    pages = []
+    for page, items in by_page.items():
+        position, impressions = weighted_position(items)
+        pages.append({
+            "page": page,
+            "position": position,
+            "impressions": impressions,
+            "days": len(items),
+        })
+    if not pages:
+        return []
+    main = max(pages, key=lambda p: p["impressions"])
+    for p in pages:
+        p["counted"] = p is main or p["impressions"] >= CANNIBAL_MIN_IMPRESSIONS
+    return sorted(pages, key=lambda p: (not p["counted"], p["position"]))
+
+
+def summarize(groups, last_day):
+    """Une ligne de tableau par mot clé.
+
+    last_day : dernier jour du CSV (date). Il fixe les deux périodes comparées
+    par "Évolution", identiques pour tous les mots clés.
+    """
+    recent_start = (last_day - timedelta(days=TREND_DAYS - 1)).isoformat()
+    previous_start = (last_day - timedelta(days=2 * TREND_DAYS - 1)).isoformat()
+    previous_end = (last_day - timedelta(days=TREND_DAYS)).isoformat()
+
     summary = []
     for keyword, rows in groups.items():
         # Position et page : la mieux classée chaque jour. Clics et impressions
         # ci-dessous : additionnés sur toutes les pages
         seen = [r for r in best_per_day(rows) if r["position"] is not None]
         latest = seen[-1] if seen else None
+
+        # Évolution : moyenne pondérée des TREND_DAYS derniers jours, comparée à
+        # celle des TREND_DAYS jours précédents
+        recent, recent_impressions = weighted_position(
+            [r for r in seen if r["date"] >= recent_start]
+        )
+        previous, previous_impressions = weighted_position(
+            [r for r in seen if previous_start <= r["date"] <= previous_end]
+        )
         change = None
-        if latest:
-            limit = date.fromisoformat(latest["date"]) - timedelta(days=TREND_DAYS)
-            older = [r for r in seen if r["date"] <= limit.isoformat()]
-            if older:
-                change = older[-1]["position"] - latest["position"]
+        if recent is not None and previous is not None:
+            change = previous - recent
+        change_reliable = min(recent_impressions, previous_impressions) >= LOW_IMPRESSIONS
         summary.append({
             "keyword": keyword,
             "latest": latest,
-            # Pages positionnées au dernier relevé, la mieux classée d'abord
-            "pages": sorted(
-                (
-                    r for r in rows
-                    if latest and r["date"] == latest["date"] and r["position"] is not None
-                ),
-                key=_rank,
-            ),
+            # Position affichée : moyenne pondérée des TREND_DAYS derniers jours
+            "average": recent,
+            "average_impressions": recent_impressions,
+            # Pages positionnées sur les TREND_DAYS derniers jours
+            "pages": pages_in_window(rows, recent_start),
             "change": change,
+            "change_reliable": change_reliable,
             "impressions": sum(r["impressions"] for r in rows),
             "clicks": sum(r["clicks"] for r in rows),
         })
     summary.sort(key=lambda s: (
+        s["average"] is None,
+        s["average"] if s["average"] is not None else 0,
         s["latest"] is None,
-        s["latest"]["position"] if s["latest"] else 0,
         s["keyword"],
     ))
     return summary
@@ -432,12 +490,18 @@ def _number(value):
     return f"{value:,}".replace(",", " ")
 
 
+def _page_line(page):
+    path = urlparse(page["page"]).path or "/"
+    line = f'{path} : position moy. {page["position"]:.1f}, {page["impressions"]} impressions'
+    return line if page["counted"] else line + " (marginale)"
+
+
 def table_html(summary):
     lines = [
         "<table>",
         "<thead><tr>"
         "<th>Mot clé</th>"
-        '<th class="num">Position</th>'
+        f'<th class="num">Position moy. {TREND_DAYS} j</th>'
         '<th class="num">Évolution</th>'
         '<th class="num">Impressions</th>'
         '<th class="num">Clics</th>'
@@ -455,39 +519,54 @@ def table_html(summary):
             seen_on = '<td class="muted">-</td>'
             pages_cell = '<td class="num muted">-</td>'
         else:
-            low = latest["impressions"] < LOW_IMPRESSIONS
-            css = "num low" if low else "num"
-            tip = (
-                f' title="Moins de {LOW_IMPRESSIONS} impressions ce jour-là : position peu fiable"'
-                if low
-                else ""
-            )
-            position = f'<td class="{css}"{tip}>{latest["position"]:.1f}</td>'
+            average = item["average"]
+            if average is None:
+                position = (
+                    f'<td class="num muted" title="Aucune impression sur les {TREND_DAYS} derniers jours">-</td>'
+                )
+            else:
+                low = item["average_impressions"] < LOW_IMPRESSIONS
+                css = "num low" if low else "num"
+                tip = (
+                    f' title="Moins de {LOW_IMPRESSIONS} impressions sur les {TREND_DAYS} derniers jours : position peu fiable"'
+                    if low
+                    else ""
+                )
+                position = f'<td class="{css}"{tip}>{average:.1f}</td>'
             url = latest["page"]
             label = urlparse(url).path or "/"
             page = f'<td><a href="{escape(url)}" target="_blank" rel="noopener">{escape(label)}</a></td>'
             seen_on = f'<td>{date.fromisoformat(latest["date"]).strftime("%d/%m/%Y")}</td>'
             pages = item["pages"]
-            if len(pages) > 1:
-                detail = "&#10;".join(
-                    escape(
-                        f'{urlparse(p["page"]).path or "/"} : position {p["position"]:.1f}, '
-                        f'{p["impressions"]} impressions'
-                    )
-                    for p in pages
+            counted = [p for p in pages if p["counted"]]
+            if not pages:
+                pages_cell = (
+                    f'<td class="num muted" title="Aucune impression sur les {TREND_DAYS} derniers jours">-</td>'
                 )
-                pages_cell = f'<td class="num warn" title="{detail}">{len(pages)}</td>'
             else:
-                pages_cell = f'<td class="num">{len(pages)}</td>'
+                detail = "&#10;".join(escape(_page_line(p)) for p in pages)
+                css = "num warn" if len(counted) > 1 else "num"
+                tip = f' title="{detail}"' if len(pages) > 1 else ""
+                pages_cell = f'<td class="{css}"{tip}>{len(counted)}</td>'
 
         change = item["change"]
         if change is None:
             change_cell = '<td class="num muted">n/d</td>'
-        elif abs(change) < 0.05:
-            change_cell = '<td class="num">stable</td>'
         else:
-            css = "up" if change > 0 else "down"
-            change_cell = f'<td class="num {css}">{change:+.1f}</td>'
+            reliable = item["change_reliable"]
+            tip = (
+                ""
+                if reliable
+                else f' title="Moins de {LOW_IMPRESSIONS} impressions sur l\'une des deux périodes : évolution peu fiable"'
+            )
+            if abs(change) < 0.05:
+                text = "stable"
+                css = "num" if reliable else "num low"
+            else:
+                text = f"{change:+.1f}"
+                css = ("up" if change > 0 else "down") if reliable else "low"
+                css = f"num {css}"
+            change_cell = f'<td class="{css}"{tip}>{text}</td>'
 
         lines.append(
             "<tr>"
@@ -542,13 +621,14 @@ def generate_report(csv_file, output_file):
     html = PAGE_TEMPLATE.substitute(
         period=period,
         generated=datetime.now().strftime("%d/%m/%Y à %H:%M"),
-        table=table_html(summarize(groups)),
+        table=table_html(summarize(groups, date.fromisoformat(rows[-1]["date"]))),
         granularity_controls=controls_html(default_granularity),
         granularity_script=GRANULARITY_SCRIPT,
         positions=positions,
         traffic=traffic,
         trend_days=TREND_DAYS,
         low_impressions=LOW_IMPRESSIONS,
+        cannibal_min=CANNIBAL_MIN_IMPRESSIONS,
     )
 
     output_file = Path(output_file)

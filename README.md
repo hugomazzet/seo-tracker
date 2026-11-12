@@ -223,6 +223,8 @@ Quand un mot clé n'a eu aucune impression un jour donné, une ligne vide (sans 
 Le fichier `service-account.json` donne accès aux données Search Console et ne doit jamais être publié.
 Si la clé a été exposée par erreur, il est nécessaire de la supprimer dans la Google Cloud Console (onglet **Clés** du compte de service) et d'en générer une nouvelle.
 
+Avant le premier commit, ajouter ces lignes au .gitignore du projet :
+
 ```gitignore
 secrets/
 inputs/
@@ -240,8 +242,8 @@ seo-tracker/
   secrets/
     service-account.json      (à ajouter, voir Configuration)
   data/
-    positions.csv             (créé automatiquement avec le premer run)
-    report.html               (crée automatiquement avec la commande --report)
+    positions.csv             (créé automatiquement avec le premier run)
+    report.html               (créé automatiquement avec la commande --report)
   src/
     seo_tracker/
       __init__.py

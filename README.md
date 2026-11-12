@@ -19,7 +19,7 @@ Pas de scraping de Google, pas de service payant, pas de base de données : un s
 
 ## Fonctionnement
 
-Le script interroge l'API Search Console pour une journée donnée, filtre les requêtes qui correspondent à la liste de mots clés, puis ajoute une ligne par mot clé dans `data/positions.csv`. Quand plusieurs pages du site sont apparues sur le même mot clé, seule la mieux classée est conservée.
+Le script interroge l'API Search Console pour une journée donnée, filtre les requêtes qui correspondent à la liste de mots clés, puis ajoute dans `data/positions.csv` une ligne par mot clé et par page. Quand plusieurs pages du site sont apparues sur le même mot clé, elles sont toutes conservées.
 
 Search Console publie ses données avec 2 à 3 jours de retard. Par défaut, le script récupère donc les données de **J-3**.
 
@@ -180,21 +180,21 @@ Cette commande lit `data/positions.csv` et génère `data/report.html`, qui s'ou
 
 Le rapport contient :
 
-- **Situation actuelle** : un tableau avec, pour chaque mot clé, la dernière position connue, son évolution par rapport à au moins 7 jours plus tôt (en places gagnées ou perdues), les impressions et clics cumulés, la page positionnée et la date du dernier relevé. Une position en gris signale moins de 10 impressions ce jour-là, donc une valeur peu fiable.
-- **Position par mot clé** : une courbe par mot clé dans le temps, avec l'axe inversé (la position 1 en haut) et la page 1 en surbrillance. Un trou dans une courbe signifie qu'il n'y a pas eu d'impression ce jour-là. Un clic sur un mot clé dans la légende l'affiche ou le masque.
+- **Situation actuelle** : un tableau avec, pour chaque mot clé, la dernière position connue (celle de la page la mieux classée), son évolution par rapport à au moins 7 jours plus tôt (en places gagnées ou perdues), les impressions et clics cumulés de toutes les pages, la page la mieux classée et la date du dernier relevé. Une position en gris signale moins de 10 impressions ce jour-là, donc une valeur peu fiable.
+- **Position par mot clé** : une courbe par mot clé dans le temps (celle de la page la mieux classée), avec l'axe inversé (la position 1 en haut) et la page 1 en surbrillance. Un trou dans une courbe signifie qu'il n'y a pas eu d'impression ce jour-là. Un clic sur un mot clé dans la légende l'affiche ou le masque.
 - **Impressions et clics** : les totaux quotidiens sur l'ensemble des mots clés suivis.
 
 Le fichier est autonome (la bibliothèque de graphiques y est embarquée, il pèse environ 5 Mo) et il est entièrement régénéré à chaque exécution. Les seuils du tableau se règlent par les constantes en haut de `src/seo_tracker/report.py` (`LOW_IMPRESSIONS`, `TREND_DAYS`).
 
 ## Format des données
 
-Les résultats sont ajoutés à `data/positions.csv` (le dossier est créé automatiquement). Une ligne correspond à un mot clé pour une date.
+Les résultats sont ajoutés à `data/positions.csv` (le dossier est créé automatiquement). Une ligne correspond à un couple mot clé et page pour une date. Quand plusieurs pages du site apparaissent sur le même mot clé, chacune a sa ligne, la mieux classée en premier.
 
 | Colonne | Description |
 | --- | --- |
 | `date` | Jour concerné (format AAAA-MM-JJ) |
 | `keyword` | Mot clé suivi |
-| `page` | URL de la page la mieux classée sur ce mot clé |
+| `page` | URL de la page concernée |
 | `position` | Position moyenne de cette page dans les résultats Google ce jour-là |
 | `clicks` | Nombre de clics sur cette page pour ce mot clé |
 | `impressions` | Nombre d'affichages de cette page dans les résultats |
@@ -205,6 +205,7 @@ Exemple :
 ```csv
 date,keyword,page,position,clicks,impressions,ctr
 2026-11-05,mot clé numéro un,https://example.com/ma-page/,8.4,2,57,0.0351
+2026-11-05,mot clé numéro un,https://example.com/autre-page/,14.2,0,12,0.0
 2026-11-05,mot clé numéro deux,,,0,0,
 ```
 
@@ -216,7 +217,7 @@ Quand un mot clé n'a eu aucune impression un jour donné, une ligne vide (sans 
 - **Délai de 2 à 3 jours** sur les données.
 - **Impressions nécessaires.** Google ne remonte une requête que si le site a été affiché au moins une fois. Un mot clé sur lequel le site n'apparaît pas du tout n'a pas de position.
 - **Correspondance exacte** avec les requêtes réellement tapées par les internautes.
-- **Une seule page par mot clé.** Si plusieurs pages du site se positionnent sur la même requête, seule la mieux classée est enregistrée (en cas d'égalité, celle qui a le plus d'impressions). Les clics et impressions des autres pages ne sont pas comptés.
+- **Plusieurs pages par mot clé.** Si plusieurs pages du site se positionnent sur la même requête, chacune a sa ligne dans le CSV. Dans le rapport, la position affichée est celle de la page la mieux classée, et les clics et impressions sont additionnés sur toutes les pages.
 
 ## Sécurité
 

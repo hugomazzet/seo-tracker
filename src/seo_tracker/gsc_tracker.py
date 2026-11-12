@@ -81,20 +81,19 @@ def build_records(day, keywords, rows):
             # Aucune impression ce jour-là : on garde une ligne pour la continuité
             records.append([day, keyword, "", "", 0, 0, ""])
             continue
-        # Plusieurs pages possibles : on garde la mieux classée (position la plus
-        # basse), et en cas d'égalité celle qui a le plus d'impressions
-        page, row = min(
-            matches, key=lambda m: (m[1]["position"], -m[1]["impressions"])
-        )
-        records.append([
-            day,
-            keyword,
-            page,
-            round(row["position"], 2),
-            int(row["clicks"]),
-            int(row["impressions"]),
-            round(row["ctr"], 4),
-        ])
+        # Plusieurs pages possibles : une ligne par page, la mieux classée d'abord
+        # (position la plus basse, puis le plus d'impressions en cas d'égalité)
+        matches.sort(key=lambda m: (m[1]["position"], -m[1]["impressions"]))
+        for page, row in matches:
+            records.append([
+                day,
+                keyword,
+                page,
+                round(row["position"], 2),
+                int(row["clicks"]),
+                int(row["impressions"]),
+                round(row["ctr"], 4),
+            ])
     return records
 
 

@@ -69,6 +69,7 @@ PAGE_TEMPLATE = Template("""<!DOCTYPE html>
     <h2>Situation actuelle</h2>
     <div class="table-wrap">$table</div>
     <p class="note">
+      Position et page : celles de la page la mieux classée. Impressions et clics : toutes pages confondues.
       Évolution : places gagnées (+) ou perdues (-) par rapport à la dernière position connue
       d'au moins $trend_days jours plus tôt. Position en gris : moins de $low_impressions impressions
       ce jour-là, donc peu fiable.
@@ -80,6 +81,7 @@ PAGE_TEMPLATE = Template("""<!DOCTYPE html>
     $positions
     <p class="note">
       Plus la courbe est haute, mieux le site est classé. La zone verte correspond à la page 1.
+      Si plusieurs pages sont positionnées sur un mot clé, la courbe suit la mieux classée.
       Un trou dans une courbe signifie qu'aucune impression n'a été enregistrée ce jour-là.
       Clique sur un mot clé dans la légende pour l'afficher ou le masquer.
     </p>
@@ -88,7 +90,7 @@ PAGE_TEMPLATE = Template("""<!DOCTYPE html>
   <section>
     <h2>Impressions et clics</h2>
     $traffic
-    <p class="note">Total sur l'ensemble des mots clés suivis.</p>
+    <p class="note">Total sur l'ensemble des mots clés suivis et de leurs pages.</p>
   </section>
 </main>
 </body>
@@ -103,21 +105,28 @@ def _rank(row):
 
 
 def load_rows(csv_file):
-    """Lit le CSV : une ligne par (date, mot clé), la mieux classée si plusieurs."""
-    best = {}
+    """Lit le CSV : une ligne par (date, mot clé, page)."""
+    rows = []
     with Path(csv_file).open(encoding="utf-8", newline="") as f:
         for raw in csv.DictReader(f):
-            row = {
+            rows.append({
                 "date": raw["date"],
                 "keyword": raw["keyword"],
                 "page": raw["page"],
                 "position": float(raw["position"]) if raw["position"] else None,
                 "clicks": int(raw["clicks"] or 0),
                 "impressions": int(raw["impressions"] or 0),
-            }
-            key = (row["date"], row["keyword"])
-            if key not in best or _rank(row) < _rank(best[key]):
-                best[key] = row
+            })
+    return sorted(rows, key=lambda r: (r["date"], r["keyword"], _rank(r)))
+
+
+def best_per_day(rows):
+    """Une ligne par (date, mot clé) : la page la mieux classée."""
+    best = {}
+    for row in rows:
+        key = (row["date"], row["keyword"])
+        if key not in best or _rank(row) < _rank(best[key]):
+            best[key] = row
     return sorted(best.values(), key=lambda r: (r["date"], r["keyword"]))
 
 
@@ -152,15 +161,17 @@ def positions_figure(groups):
         annotation_font_color="#15803d",
     )
     for keyword, rows in groups.items():
+        # La courbe suit la page la mieux classée chaque jour
+        rows = best_per_day(rows)
         if all(r["position"] is None for r in rows):
             continue
         fig.add_trace(go.Scatter(
             x=[r["date"] for r in rows],
             y=[r["position"] for r in rows],
-            customdata=[r["impressions"] for r in rows],
+            customdata=[[r["impressions"], r["page"]] for r in rows],
             name=keyword,
             mode="lines+markers",
-            hovertemplate="%{x}<br>Position %{y:.1f}<br>%{customdata} impressions<extra>%{fullData.name}</extra>",
+            hovertemplate="%{x}<br>Position %{y:.1f}<br>%{customdata[0]} impressions<br>%{customdata[1]}<extra>%{fullData.name}</extra>",
         ))
     _style(fig, 480)
     fig.update_layout(
@@ -211,7 +222,9 @@ def traffic_figure(rows):
 def summarize(groups):
     summary = []
     for keyword, rows in groups.items():
-        seen = [r for r in rows if r["position"] is not None]
+        # Position et page : la mieux classée chaque jour. Clics et impressions
+        # ci-dessous : additionnés sur toutes les pages
+        seen = [r for r in best_per_day(rows) if r["position"] is not None]
         latest = seen[-1] if seen else None
         change = None
         if latest:

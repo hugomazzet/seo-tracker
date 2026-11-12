@@ -56,6 +56,7 @@ PAGE_TEMPLATE = Template("""<!DOCTYPE html>
   .down { color: #b91c1c; font-weight: 600; }
   .low { color: #9ca3af; font-style: italic; }
   .muted { color: #9ca3af; }
+  .warn { color: #b45309; font-weight: 600; cursor: help; }
   a { color: #2563eb; text-decoration: none; }
   a:hover { text-decoration: underline; }
 </style>
@@ -73,6 +74,8 @@ PAGE_TEMPLATE = Template("""<!DOCTYPE html>
       Évolution : places gagnées (+) ou perdues (-) par rapport à la dernière position connue
       d'au moins $trend_days jours plus tôt. Position en gris : moins de $low_impressions impressions
       ce jour-là, donc peu fiable.
+      Nb pages : nombre de pages du site positionnées sur le mot clé au dernier relevé. Le chiffre passe en orange
+      dès que plusieurs pages se partagent le mot clé (risque de cannibalisation) : survole-le pour voir le détail.
     </p>
   </section>
 
@@ -235,6 +238,14 @@ def summarize(groups):
         summary.append({
             "keyword": keyword,
             "latest": latest,
+            # Pages positionnées au dernier relevé, la mieux classée d'abord
+            "pages": sorted(
+                (
+                    r for r in rows
+                    if latest and r["date"] == latest["date"] and r["position"] is not None
+                ),
+                key=_rank,
+            ),
             "change": change,
             "impressions": sum(r["impressions"] for r in rows),
             "clicks": sum(r["clicks"] for r in rows),
@@ -260,6 +271,7 @@ def table_html(summary):
         '<th class="num">Évolution</th>'
         '<th class="num">Impressions</th>'
         '<th class="num">Clics</th>'
+        '<th class="num">Nb pages</th>'
         "<th>Page</th>"
         "<th>Dernier relevé</th>"
         "</tr></thead>",
@@ -271,6 +283,7 @@ def table_html(summary):
             position = '<td class="num muted">-</td>'
             page = '<td class="muted">-</td>'
             seen_on = '<td class="muted">-</td>'
+            pages_cell = '<td class="num muted">-</td>'
         else:
             low = latest["impressions"] < LOW_IMPRESSIONS
             css = "num low" if low else "num"
@@ -284,6 +297,18 @@ def table_html(summary):
             label = urlparse(url).path or "/"
             page = f'<td><a href="{escape(url)}" target="_blank" rel="noopener">{escape(label)}</a></td>'
             seen_on = f'<td>{date.fromisoformat(latest["date"]).strftime("%d/%m/%Y")}</td>'
+            pages = item["pages"]
+            if len(pages) > 1:
+                detail = "&#10;".join(
+                    escape(
+                        f'{urlparse(p["page"]).path or "/"} : position {p["position"]:.1f}, '
+                        f'{p["impressions"]} impressions'
+                    )
+                    for p in pages
+                )
+                pages_cell = f'<td class="num warn" title="{detail}">{len(pages)}</td>'
+            else:
+                pages_cell = f'<td class="num">{len(pages)}</td>'
 
         change = item["change"]
         if change is None:
@@ -300,7 +325,7 @@ def table_html(summary):
             f"{position}{change_cell}"
             f'<td class="num">{_number(item["impressions"])}</td>'
             f'<td class="num">{_number(item["clicks"])}</td>'
-            f"{page}{seen_on}"
+            f"{pages_cell}{page}{seen_on}"
             "</tr>"
         )
     lines += ["</tbody>", "</table>"]

@@ -180,7 +180,7 @@ Cette commande lit `data/positions.csv` et génère `data/report.html`, qui s'ou
 
 Le rapport contient :
 
-- **Situation actuelle** : un tableau avec, pour chaque mot clé, la dernière position connue (celle de la page la mieux classée), son évolution par rapport à au moins 7 jours plus tôt (en places gagnées ou perdues), les impressions et clics cumulés de toutes les pages, la page la mieux classée et la date du dernier relevé. Une position en gris signale moins de 10 impressions ce jour-là, donc une valeur peu fiable.
+- **Situation actuelle** : un tableau avec, pour chaque mot clé, la dernière position connue (celle de la page la mieux classée), son évolution par rapport à au moins 7 jours plus tôt (en places gagnées ou perdues), les impressions et clics cumulés de toutes les pages, le nombre de pages positionnées au dernier relevé, la page la mieux classée et la date du dernier relevé. Une position en gris signale moins de 10 impressions ce jour-là, donc une valeur peu fiable. Le nombre de pages passe en orange dès que plusieurs pages se partagent le mot clé, ce qui peut signaler une cannibalisation : le survol affiche le détail (page, position, impressions).
 - **Position par mot clé** : une courbe par mot clé dans le temps (celle de la page la mieux classée), avec l'axe inversé (la position 1 en haut) et la page 1 en surbrillance. Un trou dans une courbe signifie qu'il n'y a pas eu d'impression ce jour-là. Un clic sur un mot clé dans la légende l'affiche ou le masque.
 - **Impressions et clics** : les totaux quotidiens sur l'ensemble des mots clés suivis.
 

@@ -11,6 +11,7 @@ Pas de scraping de Google, pas de service payant, pas de base de données : un s
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Utilisation](#utilisation)
+- [Lancement automatique (macOS)](#lancement-automatique-macos)
 - [Format des données](#format-des-données)
 - [Limites à connaître](#limites-à-connaître)
 - [Sécurité](#sécurité)
@@ -186,6 +187,77 @@ Le rapport contient :
 
 Le fichier est autonome (la bibliothèque de graphiques y est embarquée, il pèse environ 5 Mo) et il est entièrement régénéré à chaque exécution. Les seuils du tableau se règlent par les constantes en haut de `src/seo_tracker/report.py` (`LOW_IMPRESSIONS`, `TREND_DAYS`, `WEEK_DEFAULT_MIN_DAYS`, `CANNIBAL_MIN_IMPRESSIONS`).
 
+## Lancement automatique (macOS)
+
+Le script `scripts/run-daily.sh` enchaîne le relevé du jour (J-3, avec `--update`) puis la génération du rapport. Avec launchd, le planificateur de macOS, il peut tourner chaque jour sans intervention.
+
+### Prérequis
+
+- Le projet fonctionne à la main : `uv sync`, puis `uv run seo-tracker --test` affiche la propriété.
+- Le Mac reste allumé et une session utilisateur reste ouverte : un agent launchd ne s'exécute que pendant une session. Si le Mac est en veille à l'heure prévue, le relevé se lance au réveil, mais le plus simple est de désactiver la mise en veille automatique dans les réglages d'énergie.
+
+### Installation
+
+1. Créer le fichier `~/Library/LaunchAgents/com.example.seo-tracker.plist` avec le contenu suivant. Remplacer `/CHEMIN/VERS/seo-tracker` par le chemin absolu du dossier du projet et `UTILISATEUR` par le nom d'utilisateur macOS (launchd ne comprend ni `~` ni les variables) :
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.example.seo-tracker</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/CHEMIN/VERS/seo-tracker/scripts/run-daily.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/CHEMIN/VERS/seo-tracker</string>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>8</integer>
+    <key>Minute</key>
+    <integer>30</integer>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/Users/UTILISATEUR/Library/Logs/seo-tracker.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/UTILISATEUR/Library/Logs/seo-tracker.log</string>
+</dict>
+</plist>
+```
+
+2. Charger l'agent :
+
+```bash
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.example.seo-tracker.plist
+```
+
+3. Tester tout de suite, sans attendre l'heure prévue :
+
+```bash
+launchctl kickstart -k gui/$(id -u)/com.example.seo-tracker
+tail -f ~/Library/Logs/seo-tracker.log
+```
+
+Le journal doit afficher `Début du relevé`, la ligne de résultat du relevé, la ligne `Rapport généré`, puis `Terminé`.
+
+### Fonctionnement
+
+- **Horaire** : 8h30 chaque jour, modifiable dans le bloc `StartCalendarInterval` du fichier plist. L'heure a peu d'importance, car le script lit les données de J-3, déjà publiées par Google.
+- **Journal** : `~/Library/Logs/seo-tracker.log`. Il grossit de quelques lignes par jour.
+- **Échec** : une notification macOS s'affiche et le code d'erreur est écrit dans le journal.
+- **Jour manqué** : si le Mac était éteint, le jour correspondant manque dans le CSV. Les données restent disponibles chez Google pendant environ 16 mois et se récupèrent avec `uv run seo-tracker --date AAAA-MM-JJ`.
+- **État de l'agent** : `launchctl print gui/$(id -u)/com.example.seo-tracker`
+- **Modifier le fichier plist** : décharger l'agent avec `launchctl bootout gui/$(id -u)/com.example.seo-tracker`, puis le recharger avec la commande de l'étape 2.
+- **Désinstaller** : `bootout`, puis supprimer le fichier plist.
+
 ## Format des données
 
 Les résultats sont ajoutés à `data/positions.csv` (le dossier est créé automatiquement). Une ligne correspond à un couple mot clé et page pour une date. Quand plusieurs pages du site apparaissent sur le même mot clé, chacune a sa ligne, la mieux classée en premier.
@@ -242,6 +314,8 @@ seo-tracker/
     keywords.txt              (à créer, voir Configuration)
   secrets/
     service-account.json      (à ajouter, voir Configuration)
+  scripts/
+    run-daily.sh              (relevé puis rapport, utilisé par launchd)
   data/
     positions.csv             (créé automatiquement avec le premier run)
     report.html               (créé automatiquement avec la commande --report)
@@ -254,6 +328,4 @@ seo-tracker/
 
 ## Feuille de route
 
-- Lancement automatique quotidien (launchd sur macOS)
-- Génération automatique du rapport après chaque relevé quotidien
 - Solution de stockage plus adaptée à l'exploration que le CSV

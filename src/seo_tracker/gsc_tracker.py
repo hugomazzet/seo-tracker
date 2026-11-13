@@ -2,11 +2,12 @@
 """Relevé quotidien du positionnement du site via l'API Google Search Console.
 
 Usage :
-  python gsc_tracker.py         enregistre les données de J-3
+  python gsc_tracker.py             enregistre les données de J-3
 """
 
 import argparse
 import csv
+from collections import defaultdict
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -22,6 +23,8 @@ REPORT_FILE = BASE_DIR / "data" / "report.html"
 
 # Search Console publie ses données avec 2 à 3 jours de retard
 DELAY_DAYS = 3
+# Nombre de jours précédents vérifiés par --catch-up
+CATCH_UP_DAYS = 3
 SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
 COLUMNS = ["date", "keyword", "page", "position", "clicks", "impressions", "ctr"]
 
@@ -65,6 +68,14 @@ def read_existing():
         return []
     with OUTPUT_FILE.open(encoding="utf-8", newline="") as f:
         return list(csv.DictReader(f))
+
+
+def recorded_days():
+    """Retourne les dates déjà enregistrées avec leur total d'impressions."""
+    totals = defaultdict(int)
+    for row in read_existing():
+        totals[row["date"]] += int(row["impressions"] or 0)
+    return totals
 
 
 def build_records(day, keywords, rows):
@@ -158,17 +169,37 @@ def discover(service, days):
         print(f"... et {len(candidates) - DISCOVER_LIMIT} autres (limite d'affichage : {DISCOVER_LIMIT})")
 
 
+def summarize_run(end, fetched, empty):
+    """Phrase de résumé d'un rattrapage, reprise telle quelle par la notification."""
+    if not fetched:
+        return f"rien à relever, {end} déjà enregistré"
+    caught_up = [day for day in fetched if day != end]
+    parts = []
+    if end in fetched:
+        parts.append(f"{end} relevé")
+    if caught_up:
+        label = "jour rattrapé" if len(caught_up) == 1 else "jours rattrapés"
+        parts.append(f"{len(caught_up)} {label} ({', '.join(caught_up)})")
+    summary = ", ".join(parts)
+    if empty:
+        summary += f". Aucune donnée chez Google pour : {', '.join(empty)}"
+    return summary
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--test", action="store_true", help="vérifie l'accès à la propriété Google Search Console")
-    parser.add_argument("--date", help="enregistre une date précise (au format AAAA-MM-DD)")
+    parser.add_argument("--date", help="enregistre une date précise (au format AAA-MM-DD)")
     parser.add_argument("--update", action="store_true", help="remplace les données si la date est déjà enregistrée")
+    parser.add_argument("--catch-up", dest="catch_up", nargs="?", type=int, const=CATCH_UP_DAYS, metavar="N", help=f"relève aussi les N jours précédents s'ils manquent (défaut : {CATCH_UP_DAYS})",)
     parser.add_argument("--discover", action="store_true", help="affiche les mots clés candidats non suivis")
     parser.add_argument("--days", type=int, default=DISCOVER_DAYS, help=f"période analysée par --discover en jours (défaut : {DISCOVER_DAYS})")
     parser.add_argument("--report", action="store_true", help="génère le rapport HTML à partir du CSV (open data/report.html)")
     args = parser.parse_args()
+    if args.catch_up is not None and args.catch_up < 0:
+        parser.error("--catch-up attend un nombre de jours positif")
 
     if args.report:
         # Import ici : le reste du script fonctionne même sans plotly installé
@@ -194,19 +225,47 @@ def main():
             print(f"{entry['siteUrl']} ({entry['permissionLevel']})")
         return
 
-    day = args.date or (date.today() - timedelta(days=DELAY_DAYS)).isoformat()
-    already_logged = any(row["date"] == day for row in read_existing())
-    if already_logged and not args.update:
-        print(f"{day} déjà enregistré. Relancer avec --update pour remplacer les données.")
-        return
+    end = (
+        date.fromisoformat(args.date)
+        if args.date
+        else date.today() - timedelta(days=DELAY_DAYS)
+    )
+    if args.catch_up is None:
+        days = [end]
+    else:
+        days = [end - timedelta(days=n) for n in range(args.catch_up, -1, -1)]
 
     keywords = load_keywords()
-    rows = fetch_rows(service, day)
-    records = build_records(day, keywords, rows)
-    write_records(day, records)
+    recorded = recorded_days()
+    fetched = []
+    empty = []
 
-    action = "mises à jour" if already_logged else "ajoutées"
-    print(f"{day} : {len(records)} lignes {action} ({len(rows)} lignes remontées par Google).")
+    for day in days:
+        key = day.isoformat()
+        already_logged = key in recorded
+        if already_logged and not args.update:
+            if args.catch_up is None:
+                print(f"{key} déjà enregistré. Relancer avec --update pour remplacer les données.")
+                return
+            if recorded[key] > 0:
+                print(f"{key} déjà enregistré.")
+                continue
+            # Jour enregistré sans aucune impression : Google n'avait sans doute pas
+            # encore publié ses données, on le relève à nouveau
+            print(f"{key} enregistré sans impression, nouvelle tentative.")
+
+        rows = fetch_rows(service, key)
+        records = build_records(key, keywords, rows)
+        write_records(key, records)
+        fetched.append(key)
+        if not rows:
+            empty.append(key)
+
+        action = "mises à jour" if already_logged else "ajoutées"
+        print(f"{key} : {len(records)} lignes {action} ({len(rows)} lignes remontées par Google).")
+
+    if args.catch_up is not None:
+        print(f"Résumé : {summarize_run(end.isoformat(), fetched, empty)}")
 
 
 if __name__ == "__main__":

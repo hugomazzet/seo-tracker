@@ -132,6 +132,16 @@ uv run seo-tracker --date 2026-11-05 --update
 
 Les lignes de cette date sont remplacées par les données actuelles de Search Console, les autres dates ne sont pas modifiées. C'est utile quand le script a tourné avant que Google ait publié les données du jour (les lignes à 0 sont alors remplacées par les vraies valeurs).
 
+Relever J-3 et rattraper les jours manquants :
+
+```bash
+uv run seo-tracker --catch-up
+```
+
+En plus de J-3, le script vérifie les 3 jours précédents et relève ceux qui ne sont pas encore dans le CSV. Un jour enregistré sans aucune impression (Google n'avait pas encore publié ses données) est relevé à nouveau. Les jours déjà complets ne sont pas touchés. Le nombre de jours vérifiés se règle avec `--catch-up N` (par exemple `--catch-up 7`) ou par la constante `CATCH_UP_DAYS` en haut de `gsc_tracker.py`. Une ligne `Résumé` termine l'affichage, elle est reprise dans la notification du lancement automatique.
+
+`--catch-up` se combine avec `--date` (fin de la fenêtre) et avec `--update` (tous les jours de la fenêtre sont remplacés).
+
 ### Repérer de nouveaux mots clés à suivre
 
 ```bash
@@ -189,7 +199,7 @@ Le fichier est autonome (la bibliothèque de graphiques y est embarquée, il pè
 
 ## Lancement automatique (macOS)
 
-Le script `scripts/run-daily.sh` enchaîne le relevé du jour (J-3, avec `--update`) puis la génération du rapport. Avec launchd, le planificateur de macOS, il peut tourner chaque jour sans intervention.
+Le script `scripts/run-daily.sh` enchaîne le relevé (J-3 et rattrapage des jours manquants, avec `--catch-up`) puis la génération du rapport. Avec launchd, le planificateur de macOS, il peut tourner chaque jour sans intervention.
 
 ### Prérequis
 
@@ -246,14 +256,16 @@ launchctl kickstart -k gui/$(id -u)/com.example.seo-tracker
 tail -f ~/Library/Logs/seo-tracker.log
 ```
 
-Le journal doit afficher `Début du relevé`, la ligne de résultat du relevé, la ligne `Rapport généré`, puis `Terminé`.
+Le journal doit afficher `Début du relevé`, une ligne par jour traité, la ligne `Résumé`, la ligne `Rapport généré`, puis `Terminé`. Une notification macOS confirme la réussite.
 
 ### Fonctionnement
 
 - **Horaire** : 8h30 chaque jour, modifiable dans le bloc `StartCalendarInterval` du fichier plist. L'heure a peu d'importance, car le script lit les données de J-3, déjà publiées par Google.
 - **Journal** : `~/Library/Logs/seo-tracker.log`. Il grossit de quelques lignes par jour.
+- **Réussite** : une notification macOS résume le relevé, par exemple "2026-11-10 relevé, 1 jour rattrapé (2026-11-09)". Si Google n'a encore publié aucune donnée pour un jour, la notification le signale.
 - **Échec** : une notification macOS s'affiche et le code d'erreur est écrit dans le journal.
-- **Jour manqué** : si le Mac était éteint, le jour correspondant manque dans le CSV. Les données restent disponibles chez Google pendant environ 16 mois et se récupèrent avec `uv run seo-tracker --date AAAA-MM-JJ`.
+- **Notifications** : elles passent par `osascript`. Si rien ne s'affiche, vérifier dans Réglages Système, Notifications, que l'application "Éditeur de script" (Script Editor) est autorisée.
+- **Jour manqué** : une panne courte (Mac éteint, réseau coupé) est rattrapée automatiquement au lancement suivant, dans la limite des 3 jours précédents. Au-delà, les données restent disponibles chez Google pendant environ 16 mois et se récupèrent avec `uv run seo-tracker --catch-up 10` ou `uv run seo-tracker --date AAAA-MM-JJ`.
 - **État de l'agent** : `launchctl print gui/$(id -u)/com.example.seo-tracker`
 - **Modifier le fichier plist** : décharger l'agent avec `launchctl bootout gui/$(id -u)/com.example.seo-tracker`, puis le recharger avec la commande de l'étape 2.
 - **Désinstaller** : `bootout`, puis supprimer le fichier plist.

@@ -69,7 +69,7 @@ Dans Search Console, aller dans **Paramètres**, puis **Utilisateurs et autorisa
 
 ### 4. Renseigner la propriété
 
-Dans `src/seo_tracker/gsc_tracker.py`, modifier la constante `SITE` :
+Dans `src/seo_tracker/config.py`, modifier la constante `SITE` :
 
 ```python
 SITE = "sc-domain:example.com"
@@ -93,6 +93,10 @@ mot clé numéro deux
 ```
 
 La comparaison est insensible à la casse mais **exacte** : "photographe paris" ne remonte pas "photographe paris pas cher".
+
+### 6. Ajuster les réglages (facultatif)
+
+Tous les réglages de l'application sont rassemblés dans `src/seo_tracker/config.py`, chacun avec un commentaire et sa valeur par défaut : emplacement des fichiers, délai de publication des données, jours de rattrapage, seuils de `--discover`, seuils et couleurs du rapport. Seule la constante `SITE` doit obligatoirement être adaptée.
 
 ## Utilisation
 
@@ -138,7 +142,7 @@ Relever J-3 et rattraper les jours manquants :
 uv run seo-tracker --catch-up
 ```
 
-En plus de J-3, le script vérifie les 3 jours précédents et relève ceux qui ne sont pas encore dans le CSV. Un jour enregistré sans aucune impression (Google n'avait pas encore publié ses données) est relevé à nouveau. Les jours déjà complets ne sont pas touchés. Le nombre de jours vérifiés se règle avec `--catch-up N` (par exemple `--catch-up 7`) ou par la constante `CATCH_UP_DAYS` en haut de `gsc_tracker.py`. Une ligne `Résumé` termine l'affichage, elle est reprise dans la notification du lancement automatique.
+En plus de J-3, le script vérifie les 3 jours précédents et relève ceux qui ne sont pas encore dans le CSV. Un jour enregistré sans aucune impression (Google n'avait pas encore publié ses données) est relevé à nouveau. Les jours déjà complets ne sont pas touchés. Le nombre de jours vérifiés se règle avec `--catch-up N` (par exemple `--catch-up 7`) ou par la constante `CATCH_UP_DAYS` de `config.py`. Une ligne `Résumé` termine l'affichage, elle est reprise dans la notification du lancement automatique.
 
 `--catch-up` se combine avec `--date` (fin de la fenêtre) et avec `--update` (tous les jours de la fenêtre sont remplacés).
 
@@ -169,7 +173,7 @@ Pour changer la période analysée :
 uv run seo-tracker --discover --days 60
 ```
 
-Les seuils se règlent par les constantes en haut de `src/seo_tracker/gsc_tracker.py` :
+Les seuils se règlent dans `src/seo_tracker/config.py` :
 
 | Constante | Rôle | Valeur par défaut |
 | --- | --- | --- |
@@ -195,7 +199,7 @@ Le rapport contient :
 - **Position par mot clé** : une courbe par mot clé dans le temps (celle de la page la mieux classée), avec l'axe inversé (la position 1 en haut) et la page 1 en surbrillance. Un sélecteur **Jour, Semaine, Mois** change la granularité : en vue Semaine ou Mois, la position est la moyenne des positions quotidiennes pondérée par les impressions (un jour à 80 impressions pèse plus qu'un jour à 2), ce qui lisse le bruit et fait ressortir la tendance. La vue Semaine s'affiche par défaut à partir de 14 jours de données, la vue Jour avant. Un point pâle correspond à moins de 10 impressions sur la période, donc à une position peu fiable. Un trou dans une courbe signifie qu'il n'y a pas eu d'impression sur la période. Un clic sur un mot clé dans la légende l'affiche ou le masque.
 - **Impressions et clics** : les totaux quotidiens sur l'ensemble des mots clés suivis.
 
-Le fichier est autonome (la bibliothèque de graphiques y est embarquée, il pèse environ 5 Mo) et il est entièrement régénéré à chaque exécution. Les seuils du tableau se règlent par les constantes en haut de `src/seo_tracker/report.py` (`LOW_IMPRESSIONS`, `TREND_DAYS`, `WEEK_DEFAULT_MIN_DAYS`, `CANNIBAL_MIN_IMPRESSIONS`).
+Le fichier est autonome (la bibliothèque de graphiques y est embarquée, il pèse environ 5 Mo) et il est entièrement régénéré à chaque exécution. Les seuils du tableau se règlent dans `src/seo_tracker/config.py` (`LOW_IMPRESSIONS`, `TREND_DAYS`, `WEEK_DEFAULT_MIN_DAYS`, `CANNIBAL_MIN_IMPRESSIONS`).
 
 ## Lancement automatique (macOS)
 
@@ -334,6 +338,7 @@ seo-tracker/
   src/
     seo_tracker/
       __init__.py
+      config.py                 (tous les réglages, voir Configuration)
       gsc_tracker.py
       report.py
 ```

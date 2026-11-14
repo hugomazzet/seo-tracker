@@ -14,28 +14,21 @@ from urllib.parse import urlparse
 
 import plotly.graph_objects as go
 
-# En dessous de ce nombre d'impressions, la position moyenne est peu fiable
-LOW_IMPRESSIONS = 10
-# Durée (en jours) de chacune des deux périodes comparées dans la colonne "Évolution"
-TREND_DAYS = 7
-# Cannibalisation : une page compte comme "en concurrence" à partir de ce nombre
-# d'impressions sur la période (la page la plus vue compte toujours)
-CANNIBAL_MIN_IMPRESSIONS = 5
-# La page 1 de Google correspond aux positions 1 à 10
-PAGE_ONE_LAST = 10
+from seo_tracker.config import (
+    CANNIBAL_MIN_IMPRESSIONS,
+    COLORS,
+    LOW_IMPRESSIONS,
+    PAGE_ONE_LAST,
+    TREND_DAYS,
+    WEEK_DEFAULT_MIN_DAYS,
+)
+
 # Granularités de la courbe de position : (clé, libellé, format des dates de l'axe,
 # graduation de l'axe : None = automatique, "M1" = un repère par mois)
 GRANULARITIES = [
     ("day", "Jour", "%d/%m", None),
     ("week", "Semaine", "%d/%m", None),
     ("month", "Mois", "%m/%Y", "M1"),
-]
-# À partir de ce nombre de jours relevés, la vue Semaine est affichée par défaut
-WEEK_DEFAULT_MIN_DAYS = 14
-# Couleurs des mots clés (identiques quelle que soit la granularité)
-COLORS = [
-    "#636efa", "#ef553b", "#00cc96", "#ab63fa", "#ffa15a",
-    "#19d3f3", "#ff6692", "#b6e880", "#ff97ff", "#fecb52",
 ]
 
 # Bascule de granularité : on garde la sélection du mot clé masqué dans la légende

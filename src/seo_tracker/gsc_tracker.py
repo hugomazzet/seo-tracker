@@ -9,31 +9,27 @@ import argparse
 import csv
 from collections import defaultdict
 from datetime import date, timedelta
-from pathlib import Path
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-SITE = "sc-domain:hugomazet.com"
-KEY_FILE = BASE_DIR / "secrets" / "service-account.json"
-KEYWORDS_FILE = BASE_DIR / "inputs" / "keywords.txt"
-OUTPUT_FILE = BASE_DIR / "data" / "positions.csv"
-REPORT_FILE = BASE_DIR / "data" / "report.html"
+from seo_tracker.config import (
+    CATCH_UP_DAYS,
+    DELAY_DAYS,
+    DISCOVER_DAYS,
+    DISCOVER_LIMIT,
+    DISCOVER_MAX_POSITION,
+    DISCOVER_MIN_IMPRESSIONS,
+    DISCOVER_MIN_POSITION,
+    KEY_FILE,
+    KEYWORDS_FILE,
+    OUTPUT_FILE,
+    REPORT_FILE,
+    SITE,
+)
 
-# Search Console publie ses données avec 2 à 3 jours de retard
-DELAY_DAYS = 3
-# Nombre de jours précédents vérifiés par --catch-up
-CATCH_UP_DAYS = 3
 SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
 COLUMNS = ["date", "keyword", "page", "position", "clicks", "impressions", "ctr"]
-
-# Réglages de --discover (mots clés candidats)
-DISCOVER_DAYS = 28
-DISCOVER_MIN_POSITION = 5
-DISCOVER_MAX_POSITION = 20
-DISCOVER_MIN_IMPRESSIONS = 5
-DISCOVER_LIMIT = 30
 
 
 def get_service():

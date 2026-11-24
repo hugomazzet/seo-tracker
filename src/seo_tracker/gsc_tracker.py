@@ -2,7 +2,7 @@
 """Relevé quotidien du positionnement du site via l'API Google Search Console.
 
 Usage :
-  python gsc_tracker.py             enregistre les données de J-3
+  uv run gsc_tracker.py             enregistre les données de J-3
 """
 
 import argparse

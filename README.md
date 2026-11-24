@@ -16,6 +16,7 @@ Pas de scraping de Google, pas de service payant, pas de base de données : un s
 - [Limites à connaître](#limites-à-connaître)
 - [Sécurité](#sécurité)
 - [Structure du projet](#structure-du-projet)
+- [Tests](#tests)
 - [Feuille de route](#feuille-de-route)
 
 ## Fonctionnement
@@ -359,7 +360,18 @@ seo-tracker/
       config.py                 (tous les réglages, voir Configuration)
       gsc_tracker.py
       report.py
+  tests/                      (tests automatisés, voir Tests)
 ```
+
+## Tests
+
+```bash
+uv run pytest
+```
+
+Les tests couvrent la lecture des mots clés, la construction du CSV, la pagination de l'API, le rattrapage avec le journal des relevés, les options de la ligne de commande et les calculs du rapport. Ils tournent en moins d'une seconde et n'appellent jamais Google : l'API est remplacée par un faux service et les fichiers sont écrits dans un dossier temporaire, sans toucher à `inputs/` ni à `data/`. Aucune clé n'est donc nécessaire pour les lancer.
+
+pytest est une dépendance de développement (groupe `dev` de `pyproject.toml`), installée automatiquement par `uv sync`.
 
 ## Feuille de route
 

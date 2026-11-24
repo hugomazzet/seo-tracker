@@ -92,7 +92,9 @@ mot clé numéro un
 mot clé numéro deux
 ```
 
-La comparaison est insensible à la casse mais **exacte** : "photographe paris" ne remonte pas "photographe paris pas cher".
+La comparaison est insensible à la casse mais **exacte** : "photographe paris" ne remonte pas "photographe paris pas cher". Un mot clé présent plusieurs fois n'est compté qu'une fois.
+
+Pour récupérer l'historique d'un mot clé ajouté après les premiers relevés, voir [Ajouter un mot clé en cours de route](#ajouter-un-mot-clé-en-cours-de-route).
 
 ### 6. Ajuster les réglages (facultatif)
 
@@ -145,6 +147,18 @@ uv run seo-tracker --catch-up
 En plus de J-3, le script vérifie les 3 jours précédents et relève ceux qui ne sont pas encore dans le CSV. Un jour enregistré sans aucune impression (Google n'avait pas encore publié ses données) est relevé à nouveau. Les jours déjà complets ne sont pas touchés. Le nombre de jours vérifiés se règle avec `--catch-up N` (par exemple `--catch-up 7`) ou par la constante `CATCH_UP_DAYS` de `config.py`. Une ligne `Résumé` termine l'affichage, elle est reprise dans la notification du lancement automatique.
 
 `--catch-up` se combine avec `--date` (fin de la fenêtre) et avec `--update` (tous les jours de la fenêtre sont remplacés).
+
+### Ajouter un mot clé en cours de route
+
+Un mot clé ajouté dans `keywords.txt` n'est relevé qu'à partir du relevé suivant. Les jours déjà enregistrés ne le contiennent pas, et `--catch-up` seul ne les reprend pas puisqu'ils sont déjà dans le CSV. Pour lui donner un historique, il faut relever à nouveau les jours passés avec `--update` :
+
+```bash
+uv run seo-tracker --catch-up 30 --update
+```
+
+Cette commande relève à nouveau J-3 et les 30 jours précédents avec la liste de mots clés actuelle. Pour couvrir tout l'historique, choisir N égal au nombre de jours écoulés depuis le premier relevé. Google conserve les données environ 16 mois, ce qui borne la période récupérable. Le script fait un appel à l'API par jour, ce qui reste très en dessous des quotas même pour plusieurs centaines de jours.
+
+> **Attention aux mots clés retirés.** `--update` remplace toutes les lignes des jours relevés par la liste actuelle de `keywords.txt`. Un mot clé retiré de la liste perd donc son historique sur ces jours. Pour le conserver, le laisser dans `keywords.txt` le temps du rattrapage, ou limiter la période avec `--catch-up N`.
 
 ### Repérer de nouveaux mots clés à suivre
 

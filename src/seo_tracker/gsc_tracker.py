@@ -29,6 +29,8 @@ from seo_tracker.config import (
 )
 
 SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
+# Nombre maximal de lignes par requête autorisé par l'API Search Console
+ROW_LIMIT = 25000
 COLUMNS = ["date", "keyword", "page", "position", "clicks", "impressions", "ctr"]
 
 
@@ -54,15 +56,26 @@ def load_keywords():
     return keywords
 
 
+def query_all(service, body):
+    """Interroge l'API en paginant : une requête renvoie au plus ROW_LIMIT lignes,
+    on redemande les suivantes (startRow) tant que la page reçue est pleine."""
+    rows = []
+    while True:
+        page_body = {**body, "rowLimit": ROW_LIMIT, "startRow": len(rows)}
+        response = service.searchanalytics().query(siteUrl=SITE, body=page_body).execute()
+        page = response.get("rows", [])
+        rows.extend(page)
+        if len(page) < ROW_LIMIT:
+            return rows
+
+
 def fetch_rows(service, day):
     body = {
         "startDate": day,
         "endDate": day,
         "dimensions": ["query", "page"],
-        "rowLimit": 25000,
     }
-    response = service.searchanalytics().query(siteUrl=SITE, body=body).execute()
-    return response.get("rows", [])
+    return query_all(service, body)
 
 
 def read_existing():
@@ -136,10 +149,8 @@ def discover(service, days):
         "startDate": start.isoformat(),
         "endDate": end.isoformat(),
         "dimensions": ["query"],
-        "rowLimit": 25000,
     }
-    response = service.searchanalytics().query(siteUrl=SITE, body=body).execute()
-    rows = response.get("rows", [])
+    rows = query_all(service, body)
 
     tracked = set(load_keywords())
     candidates = [

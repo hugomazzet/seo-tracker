@@ -31,6 +31,13 @@ KEYWORDS_FILE = BASE_DIR / "inputs" / "keywords.txt"
 # Défaut : data/positions.csv
 OUTPUT_FILE = BASE_DIR / "data" / "positions.csv"
 
+# Journal des relevés : pour chaque jour relevé, le nombre de lignes renvoyées
+# par Google. Il permet à --catch-up de distinguer un jour que Google n'avait pas
+# encore publié (à relever à nouveau) d'un jour publié mais sans impression sur
+# les mots clés suivis (complet).
+# Défaut : data/fetch_log.csv
+FETCH_LOG_FILE = BASE_DIR / "data" / "fetch_log.csv"
+
 # Rapport HTML généré par --report
 # Défaut : data/report.html
 REPORT_FILE = BASE_DIR / "data" / "report.html"

@@ -144,7 +144,7 @@ Relever J-3 et rattraper les jours manquants :
 uv run seo-tracker --catch-up
 ```
 
-En plus de J-3, le script vérifie les 3 jours précédents et relève ceux qui ne sont pas encore dans le CSV. Un jour enregistré sans aucune impression (Google n'avait pas encore publié ses données) est relevé à nouveau. Les jours déjà complets ne sont pas touchés. Le nombre de jours vérifiés se règle avec `--catch-up N` (par exemple `--catch-up 7`) ou par la constante `CATCH_UP_DAYS` de `config.py`. Une ligne `Résumé` termine l'affichage, elle est reprise dans la notification du lancement automatique.
+En plus de J-3, le script vérifie les 3 jours précédents et relève ceux qui ne sont pas encore dans le CSV. Un jour pour lequel Google n'avait encore publié aucune donnée au moment du relevé est relevé à nouveau. Les jours déjà complets ne sont pas touchés, y compris ceux où Google a bien publié ses données mais où aucun mot clé suivi n'a eu d'impression. Pour faire la différence, le script note dans `data/fetch_log.csv` le nombre de lignes renvoyées par Google pour chaque jour relevé. Le nombre de jours vérifiés se règle avec `--catch-up N` (par exemple `--catch-up 7`) ou par la constante `CATCH_UP_DAYS` de `config.py`. Une ligne `Résumé` termine l'affichage, elle est reprise dans la notification du lancement automatique.
 
 `--catch-up` se combine avec `--date` (fin de la fenêtre) et avec `--update` (tous les jours de la fenêtre sont remplacés).
 
@@ -314,6 +314,8 @@ date,keyword,page,position,clicks,impressions,ctr
 
 Quand un mot clé n'a eu aucune impression un jour donné, une ligne vide (sans page ni position) est tout de même écrite, pour garder un historique continu.
 
+À côté du CSV, `data/fetch_log.csv` garde une ligne par jour relevé : la date et le nombre de lignes renvoyées par Google (`google_rows`). Une valeur à 0 signifie que Google n'avait encore rien publié pour ce jour, qui sera donc relevé à nouveau par `--catch-up`. Ce fichier est géré automatiquement et n'a pas à être modifié à la main.
+
 ## Limites à connaître
 
 - **Position moyenne.** Search Console fournit une moyenne sur la journée, pas un classement en direct. Le résultat varie d'une personne à l'autre (localisation, historique, appareil), la moyenne est donc plus représentative qu'une mesure ponctuelle, mais elle peut différer de ce que l'on voit en tapant la requête soi-même.
@@ -349,6 +351,7 @@ seo-tracker/
     run-daily.sh              (relevé puis rapport, utilisé par launchd)
   data/
     positions.csv             (créé automatiquement avec le premier run)
+    fetch_log.csv             (journal des relevés, utilisé par --catch-up)
     report.html               (créé automatiquement avec la commande --report)
   src/
     seo_tracker/

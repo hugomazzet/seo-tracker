@@ -21,6 +21,7 @@ from seo_tracker.config import (
     DISCOVER_MAX_POSITION,
     DISCOVER_MIN_IMPRESSIONS,
     DISCOVER_MIN_POSITION,
+    FETCH_LOG_FILE,
     KEY_FILE,
     KEYWORDS_FILE,
     OUTPUT_FILE,
@@ -91,6 +92,36 @@ def recorded_days():
     for row in read_existing():
         totals[row["date"]] += int(row["impressions"] or 0)
     return totals
+
+
+def read_fetch_log():
+    """Retourne, pour chaque jour déjà relevé, le nombre de lignes renvoyées par Google."""
+    if not FETCH_LOG_FILE.exists():
+        return {}
+    with FETCH_LOG_FILE.open(encoding="utf-8", newline="") as f:
+        return {row["date"]: int(row["google_rows"]) for row in csv.DictReader(f)}
+
+
+def log_fetch(day, google_rows):
+    """Note dans le journal le nombre de lignes renvoyées par Google pour ce jour."""
+    log = read_fetch_log()
+    log[day] = google_rows
+    FETCH_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp_file = FETCH_LOG_FILE.with_suffix(".csv.tmp")
+    with tmp_file.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["date", "google_rows"])
+        writer.writerows(sorted(log.items()))
+    tmp_file.replace(FETCH_LOG_FILE)
+
+
+def is_published(day, recorded, log):
+    """Un jour enregistré est complet si Google avait publié ses données lors du
+    relevé. Sans entrée dans le journal (jour relevé avant son ajout), on retombe
+    sur l'ancienne règle : au moins une impression sur les mots clés suivis."""
+    if day in log:
+        return log[day] > 0
+    return recorded[day] > 0
 
 
 def build_records(day, keywords, rows):
@@ -250,6 +281,7 @@ def main():
 
     keywords = load_keywords()
     recorded = recorded_days()
+    log = read_fetch_log()
     fetched = []
     empty = []
 
@@ -260,16 +292,17 @@ def main():
             if args.catch_up is None:
                 print(f"{key} déjà enregistré. Relancer avec --update pour remplacer les données.")
                 return
-            if recorded[key] > 0:
+            if is_published(key, recorded, log):
                 print(f"{key} déjà enregistré.")
                 continue
-            # Jour enregistré sans aucune impression : Google n'avait sans doute pas
-            # encore publié ses données, on le relève à nouveau
-            print(f"{key} enregistré sans impression, nouvelle tentative.")
+            # Google n'avait pas encore publié ses données lors du relevé :
+            # on le relève à nouveau
+            print(f"{key} enregistré sans données Google, nouvelle tentative.")
 
         rows = fetch_rows(service, key)
         records = build_records(key, keywords, rows)
         write_records(key, records)
+        log_fetch(key, len(rows))
         fetched.append(key)
         if not rows:
             empty.append(key)

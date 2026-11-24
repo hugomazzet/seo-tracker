@@ -88,6 +88,11 @@ LOW_IMPRESSIONS = 10
 # Défaut : 7
 TREND_DAYS = 7
 
+# Nombre de lignes de chacun des deux tableaux du haut du rapport (pages les
+# mieux positionnées et mots clés les plus vus, depuis le premier relevé).
+# Défaut : 5
+TOP_COUNT = 5
+
 # Cannibalisation : une page compte comme "en concurrence" sur un mot clé à partir
 # de ce nombre d'impressions sur la période (la page la plus vue compte toujours).
 # Défaut : 5

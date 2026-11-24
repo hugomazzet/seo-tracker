@@ -19,6 +19,7 @@ from seo_tracker.config import (
     COLORS,
     LOW_IMPRESSIONS,
     PAGE_ONE_LAST,
+    TOP_COUNT,
     TREND_DAYS,
     WEEK_DEFAULT_MIN_DAYS,
 )
@@ -111,6 +112,9 @@ PAGE_TEMPLATE = Template("""<!DOCTYPE html>
     font: inherit; font-size: 13px; color: #4b5563; cursor: pointer;
   }
   .gran button.active { background: #ffffff; color: #1f2937; font-weight: 600; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+  .tops { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; margin-bottom: 20px; }
+  .tops section { margin-bottom: 0; }
+  .tops td.rank { color: #9ca3af; width: 1%; font-variant-numeric: tabular-nums; }
   a { color: #2563eb; text-decoration: none; }
   a:hover { text-decoration: underline; }
 </style>
@@ -120,12 +124,29 @@ PAGE_TEMPLATE = Template("""<!DOCTYPE html>
   <h1>Suivi du positionnement</h1>
   <p class="subtitle">$period. Rapport généré le $generated.</p>
 
+  <div class="tops">
+    <section>
+      <h2>Pages les mieux positionnées</h2>
+      <p class="note">Les $top_count pages les mieux classées depuis le premier relevé</p>
+      </br>
+      <div class="table-wrap">$top_pages</div>
+      <p class="note">Position moyenne pondérée par les impressions, sur l'ensemble des mots clés suivis qui remontent la page. Les pages de moins de $low_impressions impressions ne sont pas classées.</p>
+    </section>
+    <section>
+      <h2>Mots clés les plus vus</h2>
+      <p class="note">Les $top_count mots clés qui ont reçu le plus d'impressions depuis le premier relevé</p>
+      </br>
+      <div class="table-wrap">$top_impressions</div>
+      <p class="note">Toutes pages confondues. Position moyenne pondérée sur la même période (page la mieux classée chaque jour), en gris si moins de $low_impressions impressions.</p>
+    </section>
+  </div>
+
   <section>
-    <h2>Situation actuelle</h2>
+    <h2>Situation actuelle sur $trend_days jours</h2>
     <div class="table-wrap">$table</div>
     <p class="note">Position : moyenne des $trend_days derniers jours, pondérée par les impressions (chaque jour compte la page la mieux classée).</p>
-    <p class="note">Page : la mieux classée au dernier relevé.</p>
-    <p class="note">Impressions et clics : toutes pages confondues.</p>
+    <p class="note">Page : la mieux classée lors de la dernière apparition, c'est-à-dire le dernier jour où le site a été affiché dans Google sur ce mot clé.</p>
+    <p class="note">Impressions et clics : sur les $trend_days derniers jours, toutes pages confondues.</p>
     <p class="note">Évolution : places gagnées (+) ou perdues (-) entre cette moyenne et celle des $trend_days jours précédents.</p>
     <p class="note">En gris : moins de $low_impressions impressions sur la période (ou sur l'une des deux pour l'évolution), donc peu fiable.</p>
     <p class="note">Nb pages : pages du site positionnées sur le mot clé sur les $trend_days derniers jours. Les pages marginales (moins de $cannibal_min impressions) ne sont pas comptées, sauf la plus vue. Le chiffre passe en orange dès que plusieurs pages se partagent le mot clé (risque de cannibalisation) : survole-le pour voir le détail (position moyenne et impressions de chaque page).</p>
@@ -452,6 +473,8 @@ def summarize(groups, last_day):
         if recent is not None and previous is not None:
             change = previous - recent
         change_reliable = min(recent_impressions, previous_impressions) >= LOW_IMPRESSIONS
+        # Position sur tout l'historique, pour le tableau des mots clés les plus vus
+        overall, overall_impressions = weighted_position(seen)
         summary.append({
             "keyword": keyword,
             "latest": latest,
@@ -462,8 +485,14 @@ def summarize(groups, last_day):
             "pages": pages_in_window(rows, recent_start),
             "change": change,
             "change_reliable": change_reliable,
+            "overall": overall,
+            "overall_impressions": overall_impressions,
+            # Impressions et clics de tout l'historique, toutes pages
             "impressions": sum(r["impressions"] for r in rows),
             "clicks": sum(r["clicks"] for r in rows),
+            # Impressions et clics des TREND_DAYS derniers jours, toutes pages
+            "recent_impressions": sum(r["impressions"] for r in rows if r["date"] >= recent_start),
+            "recent_clicks": sum(r["clicks"] for r in rows if r["date"] >= recent_start),
         })
     summary.sort(key=lambda s: (
         s["average"] is None,
@@ -484,18 +513,126 @@ def _page_line(page):
     return line if page["counted"] else line + " (marginale)"
 
 
+def _position_cell(position, impressions, period):
+    """Cellule de position moyenne, en gris si elle repose sur trop peu
+    d'impressions. period : libellé de la période, repris dans l'infobulle."""
+    if position is None:
+        return '<td class="num muted">-</td>'
+    low = impressions < LOW_IMPRESSIONS
+    css = "num low" if low else "num"
+    tip = (
+        f' title="Moins de {LOW_IMPRESSIONS} impressions {period} : position peu fiable"'
+        if low
+        else ""
+    )
+    return f'<td class="{css}"{tip}>{position:.1f}</td>'
+
+
+def _page_link(url):
+    label = urlparse(url).path or "/"
+    return f'<a href="{escape(url)}" target="_blank" rel="noopener">{escape(label)}</a>'
+
+
+def _top_table(first_header, headers, items, first_cell, cells, empty):
+    """Petit tableau classé.
+
+    first_header / first_cell : libellé et contenu (HTML) de la colonne nommée
+    (mot clé ou page) ; headers : libellés des colonnes numériques ; cells :
+    fonction qui renvoie leurs cellules ; empty : message si aucune ligne.
+    """
+    if not items:
+        return f'<p class="muted">{empty}</p>'
+    head = "".join(f'<th class="num">{label}</th>' for label in headers)
+    lines = ["<table>", f"<thead><tr><th></th><th>{first_header}</th>{head}</tr></thead>", "<tbody>"]
+    for rank, item in enumerate(items, start=1):
+        lines.append(
+            f'<tr><td class="rank">{rank}</td><td>{first_cell(item)}</td>{cells(item)}</tr>'
+        )
+    lines += ["</tbody>", "</table>"]
+    return "\n".join(lines)
+
+
+def rank_pages(rows):
+    """Pages classées par position moyenne sur tout l'historique.
+
+    Position pondérée par les impressions, tous mots clés suivis confondus. Les
+    pages de moins de LOW_IMPRESSIONS impressions sont écartées : trop peu vues,
+    leur position ne veut rien dire et elles pollueraient le haut du classement.
+    """
+    by_page = defaultdict(list)
+    for row in rows:
+        if row["position"] is not None:
+            by_page[row["page"]].append(row)
+
+    pages = []
+    for page, items in by_page.items():
+        position, impressions = weighted_position(items)
+        if impressions < LOW_IMPRESSIONS:
+            continue
+        pages.append({
+            "page": page,
+            "position": position,
+            "impressions": impressions,
+            "keywords": len({r["keyword"] for r in items}),
+        })
+    return sorted(pages, key=lambda p: (p["position"], -p["impressions"]))
+
+
+def top_pages_html(rows):
+    """Les TOP_COUNT pages les mieux classées sur tout l'historique."""
+    return _top_table(
+        "Page",
+        ["Position moy.", "Impressions", "Mots clés"],
+        rank_pages(rows)[:TOP_COUNT],
+        lambda p: _page_link(p["page"]),
+        lambda p: (
+            f'<td class="num">{p["position"]:.1f}</td>'
+            f'<td class="num">{_number(p["impressions"])}</td>'
+            f'<td class="num">{p["keywords"]}</td>'
+        ),
+        f"Aucune page avec au moins {LOW_IMPRESSIONS} impressions pour l'instant.",
+    )
+
+
+def top_impressions_html(summary):
+    """Les TOP_COUNT mots clés les plus vus sur tout l'historique."""
+    ranked = [s for s in summary if s["impressions"] > 0]
+    ranked.sort(key=lambda s: (-s["impressions"], -s["clicks"], s["keyword"]))
+    return _top_table(
+        "Mot clé",
+        ["Impressions", "Clics", "Position moy."],
+        ranked[:TOP_COUNT],
+        lambda s: escape(s["keyword"]),
+        lambda s: (
+            f'<td class="num">{_number(s["impressions"])}</td>'
+            f'<td class="num">{_number(s["clicks"])}</td>'
+            + _position_cell(s["overall"], s["overall_impressions"], "sur l'ensemble du relevé")
+        ),
+        "Aucune impression enregistrée pour l'instant.",
+    )
+
+
+def _is_active(item):
+    """Un mot clé apparaît dans la Situation actuelle s'il a eu au moins une
+    impression ou un clic sur les TREND_DAYS derniers jours."""
+    return item["recent_impressions"] > 0 or item["recent_clicks"] > 0
+
+
 def table_html(summary):
+    summary = [s for s in summary if _is_active(s)]
+    if not summary:
+        return f'<p class="muted">Aucune impression sur les {TREND_DAYS} derniers jours.</p>'
     lines = [
         "<table>",
         "<thead><tr>"
         "<th>Mot clé</th>"
-        f'<th class="num">Position moy. {TREND_DAYS} j</th>'
+        '<th class="num">Position moy.</th>'
         '<th class="num">Évolution</th>'
         '<th class="num">Impressions</th>'
         '<th class="num">Clics</th>'
         '<th class="num">Nb pages</th>'
         "<th>Page</th>"
-        "<th>Dernier relevé</th>"
+        "<th>Dernière apparition</th>"
         "</tr></thead>",
         "<tbody>",
     ]
@@ -513,17 +650,10 @@ def table_html(summary):
                     f'<td class="num muted" title="Aucune impression sur les {TREND_DAYS} derniers jours">-</td>'
                 )
             else:
-                low = item["average_impressions"] < LOW_IMPRESSIONS
-                css = "num low" if low else "num"
-                tip = (
-                    f' title="Moins de {LOW_IMPRESSIONS} impressions sur les {TREND_DAYS} derniers jours : position peu fiable"'
-                    if low
-                    else ""
+                position = _position_cell(
+                    average, item["average_impressions"], f"sur les {TREND_DAYS} derniers jours"
                 )
-                position = f'<td class="{css}"{tip}>{average:.1f}</td>'
-            url = latest["page"]
-            label = urlparse(url).path or "/"
-            page = f'<td><a href="{escape(url)}" target="_blank" rel="noopener">{escape(label)}</a></td>'
+            page = f'<td>{_page_link(latest["page"])}</td>'
             seen_on = f'<td>{date.fromisoformat(latest["date"]).strftime("%d/%m/%Y")}</td>'
             pages = item["pages"]
             counted = [p for p in pages if p["counted"]]
@@ -560,8 +690,8 @@ def table_html(summary):
             "<tr>"
             f"<td>{escape(item['keyword'])}</td>"
             f"{position}{change_cell}"
-            f'<td class="num">{_number(item["impressions"])}</td>'
-            f'<td class="num">{_number(item["clicks"])}</td>'
+            f'<td class="num">{_number(item["recent_impressions"])}</td>'
+            f'<td class="num">{_number(item["recent_clicks"])}</td>'
             f"{pages_cell}{page}{seen_on}"
             "</tr>"
         )
@@ -606,10 +736,14 @@ def generate_report(csv_file, output_file):
         full_html=False, include_plotlyjs=False, config=plotly_config
     )
 
+    summary = summarize(groups, date.fromisoformat(rows[-1]["date"]))
     html = PAGE_TEMPLATE.substitute(
         period=period,
         generated=datetime.now().strftime("%d/%m/%Y à %H:%M"),
-        table=table_html(summarize(groups, date.fromisoformat(rows[-1]["date"]))),
+        top_pages=top_pages_html(rows),
+        top_impressions=top_impressions_html(summary),
+        top_count=TOP_COUNT,
+        table=table_html(summary),
         granularity_controls=controls_html(default_granularity),
         granularity_script=GRANULARITY_SCRIPT,
         positions=positions,

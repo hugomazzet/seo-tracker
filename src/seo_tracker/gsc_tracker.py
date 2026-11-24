@@ -155,9 +155,16 @@ def build_records(day, keywords, rows):
 
 
 def write_records(day, records):
-    """Écrit les lignes du jour en remplaçant celles déjà présentes pour cette date."""
+    """Écrit les lignes du jour en remplaçant celles déjà présentes pour cette
+    date et ces mots clés. Les lignes des mots clés qui ne sont plus suivis sont
+    conservées : le CSV garde tout l'historique, même après un --update."""
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    kept = [row for row in read_existing() if row["date"] != day]
+    replaced = {record[1] for record in records}
+    kept = [
+        row
+        for row in read_existing()
+        if row["date"] != day or row["keyword"] not in replaced
+    ]
     new = [dict(zip(COLUMNS, record)) for record in records]
     # Tri stable : l'ordre est chronologique même si on met à jour une date ancienne
     all_rows = sorted(kept + new, key=lambda row: row["date"])
@@ -276,7 +283,10 @@ def main():
         # Import ici : le reste du script fonctionne même sans plotly installé
         from seo_tracker.report import generate_report
 
-        generate_report(OUTPUT_FILE, REPORT_FILE)
+        # Le rapport ne montre que les mots clés suivis ; sans keywords.txt
+        # (CSV copié seul sur une autre machine, par exemple), il montre tout
+        keywords = load_keywords() if KEYWORDS_FILE.exists() else None
+        generate_report(OUTPUT_FILE, REPORT_FILE, keywords)
         return
 
     service = get_service()

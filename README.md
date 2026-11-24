@@ -95,6 +95,8 @@ mot clé numéro deux
 
 La comparaison est insensible à la casse mais **exacte** : "photographe paris" ne remonte pas "photographe paris pas cher". Un mot clé présent plusieurs fois n'est compté qu'une fois.
 
+Retirer un mot clé de la liste (ou le commenter avec `#`) le met en pause : il n'est plus relevé et disparaît du rapport, mais son historique reste dans `data/positions.csv`. S'il est remis dans la liste, il réapparaît dans le rapport avec tout son historique.
+
 Pour récupérer l'historique d'un mot clé ajouté après les premiers relevés, voir [Ajouter un mot clé en cours de route](#ajouter-un-mot-clé-en-cours-de-route).
 
 ### 6. Ajuster les réglages (facultatif)
@@ -137,7 +139,7 @@ Mettre à jour une date déjà enregistrée :
 uv run seo-tracker --date 2026-11-05 --update
 ```
 
-Les lignes de cette date sont remplacées par les données actuelles de Search Console, les autres dates ne sont pas modifiées. C'est utile quand le script a tourné avant que Google ait publié les données du jour (les lignes à 0 sont alors remplacées par les vraies valeurs).
+Les lignes de cette date sont remplacées par les données actuelles de Search Console pour les mots clés de `keywords.txt`. Les autres dates ne sont pas modifiées, pas plus que les lignes des mots clés retirés de la liste, dont l'historique est conservé. C'est utile quand le script a tourné avant que Google ait publié les données du jour (les lignes à 0 sont alors remplacées par les vraies valeurs).
 
 Relever J-3 et rattraper les jours manquants :
 
@@ -158,8 +160,6 @@ uv run seo-tracker --catch-up 30 --update
 ```
 
 Cette commande relève à nouveau J-3 et les 30 jours précédents avec la liste de mots clés actuelle. Pour couvrir tout l'historique, choisir N égal au nombre de jours écoulés depuis le premier relevé. Google conserve les données environ 16 mois, ce qui borne la période récupérable. Le script fait un appel à l'API par jour, ce qui reste très en dessous des quotas même pour plusieurs centaines de jours.
-
-> **Attention aux mots clés retirés.** `--update` remplace toutes les lignes des jours relevés par la liste actuelle de `keywords.txt`. Un mot clé retiré de la liste perd donc son historique sur ces jours. Pour le conserver, le laisser dans `keywords.txt` le temps du rattrapage, ou limiter la période avec `--catch-up N`.
 
 ### Repérer de nouveaux mots clés à suivre
 
@@ -206,7 +206,7 @@ La comparaison avec `keywords.txt` est exacte (insensible à la casse) : une var
 uv run seo-tracker --report
 ```
 
-Cette commande lit `data/positions.csv` et génère `data/report.html`, qui s'ouvre dans n'importe quel navigateur (sur macOS : `open data/report.html`). Elle ne contacte pas Google et ne nécessite ni clé ni connexion. `--report` ignore toutes les autres options (un message le signale si d'autres options sont passées) : pour relever puis générer le rapport, lancer les deux commandes l'une après l'autre, comme le fait `scripts/run-daily.sh`.
+Cette commande lit `data/positions.csv` et génère `data/report.html`, qui s'ouvre dans n'importe quel navigateur (sur macOS : `open data/report.html`). Elle ne contacte pas Google et ne nécessite ni clé ni connexion. Seuls les mots clés présents dans `keywords.txt` sont pris en compte, dans tous les tableaux et graphiques : ceux qui ont été retirés de la liste sont ignorés (sans `keywords.txt`, tout le CSV est affiché). `--report` ignore toutes les autres options (un message le signale si d'autres options sont passées) : pour relever puis générer le rapport, lancer les deux commandes l'une après l'autre, comme le fait `scripts/run-daily.sh`.
 
 Le rapport contient :
 

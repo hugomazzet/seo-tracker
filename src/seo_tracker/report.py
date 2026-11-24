@@ -699,8 +699,13 @@ def table_html(summary):
     return "\n".join(lines)
 
 
-def generate_report(csv_file, output_file):
-    """Génère le rapport HTML. Renvoie True si le fichier a été écrit."""
+def generate_report(csv_file, output_file, keywords=None):
+    """Génère le rapport HTML. Renvoie True si le fichier a été écrit.
+
+    keywords : mots clés suivis (keywords.txt). Les lignes du CSV des autres mots
+    clés, retirés de la liste, sont ignorées : le CSV garde leur historique, qui
+    réapparaît si le mot clé est remis dans la liste. None : tout est affiché.
+    """
     csv_file = Path(csv_file)
     if not csv_file.exists():
         print(f"Aucune donnée : {csv_file} n'existe pas encore. Lance d'abord un relevé.")
@@ -710,6 +715,12 @@ def generate_report(csv_file, output_file):
     if not rows:
         print("Le fichier CSV ne contient aucune donnée.")
         return False
+    if keywords is not None:
+        tracked = set(keywords)
+        rows = [r for r in rows if r["keyword"] in tracked]
+        if not rows:
+            print("Le fichier CSV ne contient aucune donnée pour les mots clés suivis.")
+            return False
 
     groups = group_by_keyword(rows)
     first_day = date.fromisoformat(rows[0]["date"]).strftime("%d/%m/%Y")

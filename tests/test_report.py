@@ -158,6 +158,20 @@ def test_generate_report_ecrit_un_fichier_autonome(tmp_path, csv_file):
     assert "Données du 20/11/2026 au 21/11/2026 (2 jours relevés, 2 mots clés suivis)" in html
 
 
+def test_generate_report_ignore_les_mots_cles_retires(tmp_path, csv_file):
+    output = tmp_path / "report.html"
+    assert generate_report(csv_file, output, ["mot un"])
+    html = output.read_text(encoding="utf-8")
+    assert "(2 jours relevés, 1 mots clés suivis)" in html
+    assert "mot deux" not in html
+    assert "https://x/b" not in html  # page vue uniquement sur le mot clé retiré
+
+
+def test_generate_report_sans_mot_cle_suivi_dans_le_csv(tmp_path, csv_file, capsys):
+    assert not generate_report(csv_file, tmp_path / "report.html", ["autre"])
+    assert "aucune donnée pour les mots clés suivis" in capsys.readouterr().out
+
+
 def test_generate_report_sans_csv(tmp_path, capsys):
     assert not generate_report(tmp_path / "absent.csv", tmp_path / "report.html")
     assert "n'existe pas encore" in capsys.readouterr().out

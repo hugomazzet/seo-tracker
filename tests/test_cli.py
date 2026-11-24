@@ -43,14 +43,20 @@ def test_catch_up_negatif_refuse(files, run, capsys):
 @pytest.fixture
 def report_calls(monkeypatch):
     calls = []
-    monkeypatch.setattr(seo_tracker.report, "generate_report", lambda *paths: calls.append(paths))
+    monkeypatch.setattr(seo_tracker.report, "generate_report", lambda *args: calls.append(args))
     return calls
 
 
 def test_report_seul_sans_message(files, run, report_calls, capsys):
+    files.keywords.write_text("mot un\nmot deux\n", encoding="utf-8")
     run(None, "--report")
-    assert report_calls == [(files.output, files.report)]
+    assert report_calls == [(files.output, files.report, ["mot un", "mot deux"])]
     assert "ignore" not in capsys.readouterr().out
+
+
+def test_report_sans_keywords_txt_affiche_tout(files, run, report_calls):
+    run(None, "--report")
+    assert report_calls == [(files.output, files.report, None)]
 
 
 def test_report_signale_les_options_ignorees(files, run, report_calls, capsys):

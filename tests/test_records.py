@@ -59,3 +59,19 @@ def test_write_records_remplace_le_jour_et_garde_les_autres(files):
         ("2026-11-21", "https://x/a"),
     ]
     assert not files.output.with_suffix(".csv.tmp").exists()
+
+
+def test_write_records_garde_les_mots_cles_qui_ne_sont_plus_suivis(files):
+    write_records("2026-11-20", [
+        ["2026-11-20", "garde", "https://x/a", 5.0, 0, 3, 0.0],
+        ["2026-11-20", "retire", "https://x/b", 9.0, 0, 7, 0.0],
+    ])
+    # --update après avoir retiré "retire" de keywords.txt : seules les lignes
+    # des mots clés encore suivis sont remplacées
+    write_records("2026-11-20", [["2026-11-20", "garde", "https://x/c", 4.0, 1, 6, 0.1667]])
+
+    rows = _read(files.output)
+    assert sorted((r["keyword"], r["page"]) for r in rows) == [
+        ("garde", "https://x/c"),
+        ("retire", "https://x/b"),
+    ]

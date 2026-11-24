@@ -43,8 +43,14 @@ def load_keywords():
     keywords = []
     for line in KEYWORDS_FILE.read_text(encoding="utf-8").splitlines():
         line = line.strip().lower()
-        if line and not line.startswith("#"):
-            keywords.append(line)
+        if not line or line.startswith("#"):
+            continue
+        # Un doublon serait écrit deux fois par jour dans le CSV et compterait
+        # double dans le rapport : on ne garde que la première occurrence
+        if line in keywords:
+            print(f"Mot clé en double ignoré dans {KEYWORDS_FILE.name} : {line}")
+            continue
+        keywords.append(line)
     return keywords
 
 

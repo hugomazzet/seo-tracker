@@ -205,7 +205,7 @@ La comparaison avec `keywords.txt` est exacte (insensible à la casse) : une var
 uv run seo-tracker --report
 ```
 
-Cette commande lit `data/positions.csv` et génère `data/report.html`, qui s'ouvre dans n'importe quel navigateur (sur macOS : `open data/report.html`). Elle ne contacte pas Google et ne nécessite ni clé ni connexion.
+Cette commande lit `data/positions.csv` et génère `data/report.html`, qui s'ouvre dans n'importe quel navigateur (sur macOS : `open data/report.html`). Elle ne contacte pas Google et ne nécessite ni clé ni connexion. `--report` ignore toutes les autres options (un message le signale si d'autres options sont passées) : pour relever puis générer le rapport, lancer les deux commandes l'une après l'autre, comme le fait `scripts/run-daily.sh`.
 
 Le rapport contient :
 
@@ -284,7 +284,7 @@ Le journal doit afficher `Début du relevé`, une ligne par jour traité, la lig
 - **Réussite** : une notification macOS résume le relevé, par exemple "2026-11-10 relevé, 1 jour rattrapé (2026-11-09)". Si Google n'a encore publié aucune donnée pour un jour, la notification le signale.
 - **Échec** : une notification macOS s'affiche et le code d'erreur est écrit dans le journal.
 - **Notifications** : elles passent par `osascript`. Si rien ne s'affiche, vérifier dans Réglages Système, Notifications, que l'application "Éditeur de script" (Script Editor) est autorisée.
-- **Jour manqué** : une panne courte (Mac éteint, réseau coupé) est rattrapée automatiquement au lancement suivant, dans la limite des 3 jours précédents. Au-delà, les données restent disponibles chez Google pendant environ 16 mois et se récupèrent avec `uv run seo-tracker --catch-up 10` ou `uv run seo-tracker --date AAAA-MM-JJ`.
+- **Jour manqué** : une panne courte (Mac éteint, réseau coupé) est rattrapée automatiquement au lancement suivant, dans la limite des 3 jours précédents. Au-delà, les données restent disponibles chez Google pendant environ 16 mois et se récupèrent avec `uv run seo-tracker --catch-up 10` ou `uv run seo-tracker --date YYYY-MM-DD`.
 - **État de l'agent** : `launchctl print gui/$(id -u)/com.example.seo-tracker`
 - **Modifier le fichier plist** : décharger l'agent avec `launchctl bootout gui/$(id -u)/com.example.seo-tracker`, puis le recharger avec la commande de l'étape 2.
 - **Désinstaller** : `bootout`, puis supprimer le fichier plist.
@@ -295,7 +295,7 @@ Les résultats sont ajoutés à `data/positions.csv` (le dossier est créé auto
 
 | Colonne | Description |
 | --- | --- |
-| `date` | Jour concerné (format AAAA-MM-JJ) |
+| `date` | Jour concerné (format YYYY-MM-DD) |
 | `keyword` | Mot clé suivi |
 | `page` | URL de la page concernée |
 | `position` | Position moyenne de cette page dans les résultats Google ce jour-là |

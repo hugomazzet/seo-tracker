@@ -1,7 +1,7 @@
 [project]
 name = "seo-tracker"
 version = "0.1.0"
-description = "Add your description here"
+description = "Suivi quotidien du positionnement d'un site sur une liste de mots clés, à partir de l'API Google Search Console, avec rapport HTML"
 readme = "README.md"
 authors = [
     { name = "Hugo Mazet", email = "hugomazzet@gmail.com" }

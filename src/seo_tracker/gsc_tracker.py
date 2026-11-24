@@ -8,7 +8,7 @@ Usage :
 import argparse
 import csv
 from collections import defaultdict
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -230,22 +230,49 @@ def summarize_run(end, fetched, empty):
     return summary
 
 
+def parse_date(value):
+    """Lit une date YYYY-MM-DD pour argparse, avec un message clair si elle est invalide."""
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"date invalide : {value!r}. Format attendu : YYYY-MM-DD, par exemple 2026-11-05"
+        ) from None
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--test", action="store_true", help="vérifie l'accès à la propriété Google Search Console")
-    parser.add_argument("--date", help="enregistre une date précise (au format AAA-MM-DD)")
+    parser.add_argument("--date", type=parse_date, metavar="YYYY-MM-DD", help="enregistre une date précise (au format YYYY-MM-DD)")
     parser.add_argument("--update", action="store_true", help="remplace les données si la date est déjà enregistrée")
     parser.add_argument("--catch-up", dest="catch_up", nargs="?", type=int, const=CATCH_UP_DAYS, metavar="N", help=f"relève aussi les N jours précédents s'ils manquent (défaut : {CATCH_UP_DAYS})",)
     parser.add_argument("--discover", action="store_true", help="affiche les mots clés candidats non suivis")
     parser.add_argument("--days", type=int, default=DISCOVER_DAYS, help=f"période analysée par --discover en jours (défaut : {DISCOVER_DAYS})")
-    parser.add_argument("--report", action="store_true", help="génère le rapport HTML à partir du CSV (open data/report.html)")
+    parser.add_argument("--report", action="store_true", help="génère le rapport HTML à partir du CSV (open data/report.html) ; ignore toutes les autres options")
     args = parser.parse_args()
     if args.catch_up is not None and args.catch_up < 0:
         parser.error("--catch-up attend un nombre de jours positif")
 
     if args.report:
+        ignored = [
+            option
+            for option, used in [
+                ("--test", args.test),
+                ("--date", args.date is not None),
+                ("--update", args.update),
+                ("--catch-up", args.catch_up is not None),
+                ("--discover", args.discover),
+                ("--days", args.days != DISCOVER_DAYS),
+            ]
+            if used
+        ]
+        if ignored:
+            print(
+                f"--report ignore les autres options ({', '.join(ignored)}) : "
+                "aucun relevé n'est fait, seul le rapport est généré."
+            )
         # Import ici : le reste du script fonctionne même sans plotly installé
         from seo_tracker.report import generate_report
 
@@ -269,11 +296,7 @@ def main():
             print(f"{entry['siteUrl']} ({entry['permissionLevel']})")
         return
 
-    end = (
-        date.fromisoformat(args.date)
-        if args.date
-        else date.today() - timedelta(days=DELAY_DAYS)
-    )
+    end = args.date or date.today() - timedelta(days=DELAY_DAYS)
     if args.catch_up is None:
         days = [end]
     else:

@@ -143,11 +143,12 @@ PAGE_TEMPLATE = Template("""<!DOCTYPE html>
 
   <section>
     <h2>Situation actuelle sur $trend_days jours</h2>
+    <p class="note">Position moyenne des $trend_days derniers jours, pondérée par les impressions (chaque jour compte la page la mieux classée).</p>
+    </br>
     <div class="table-wrap">$table</div>
-    <p class="note">Position : moyenne des $trend_days derniers jours, pondérée par les impressions (chaque jour compte la page la mieux classée).</p>
-    <p class="note">Page : la mieux classée lors de la dernière apparition, c'est-à-dire le dernier jour où le site a été affiché dans Google sur ce mot clé.</p>
-    <p class="note">Impressions et clics : sur les $trend_days derniers jours, toutes pages confondues.</p>
     <p class="note">Évolution : places gagnées (+) ou perdues (-) entre cette moyenne et celle des $trend_days jours précédents.</p>
+    <p class="note">Impressions et clics : sur les $trend_days derniers jours, toutes pages confondues.</p>
+    <p class="note">Page : la mieux classée lors de la dernière apparition, c'est-à-dire le dernier jour où le site a été affiché dans Google sur ce mot clé.</p>
     <p class="note">En gris : moins de $low_impressions impressions sur la période (ou sur l'une des deux pour l'évolution), donc peu fiable.</p>
     <p class="note">Nb pages : pages du site positionnées sur le mot clé sur les $trend_days derniers jours. Les pages marginales (moins de $cannibal_min impressions) ne sont pas comptées, sauf la plus vue. Le chiffre passe en orange dès que plusieurs pages se partagent le mot clé (risque de cannibalisation) : survole-le pour voir le détail (position moyenne et impressions de chaque page).</p>
   </section>
